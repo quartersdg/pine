@@ -2,6 +2,7 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <time.h>
+#include <stdarg.h>
 #include "queue.h"
 #include "pebble.h"
 #include "PINEGUI.h"
@@ -14,6 +15,19 @@
 	update those functions*/
 static bool gs_dirty = true;
 
+bool clock_is_24h_style(void) {
+	return PineIs24hStyle();
+}
+
+void app_log(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt, ...) {
+	va_list va;
+	va_start(va,fmt);
+
+//	printf("[%s:%d] ", src_filename, src_line_number);
+//	vprintf(fmt, va);
+
+	va_end(va);
+}
 int32_t sin_lookup(int32_t angle) {
 	double a = (double)angle / TRIG_MAX_ANGLE;
 	a = a * M_PI * 2;
@@ -210,6 +224,20 @@ GRect layer_get_bounds(const Layer *layer) {
 	return layer->base.bounds;
 }
 
+GRect layer_get_relative_frame(const Layer *layer, const GRect r) {
+	GRect f;
+	f.origin.x = r.origin.x - layer->base.bounds.origin.x;
+	f.origin.y = r.origin.y - layer->base.bounds.origin.y;
+	f.size.w = r.size.w - layer->base.bounds.size.w;
+	f.size.h = r.size.h - layer->base.bounds.size.h;
+	return f;
+}
+
+GRect layer_get_frame(const Layer *layer) {
+	if (layer->base.parent)
+		return layer_get_relative_frame(layer->base.parent, layer->base.bounds);
+	return layer->base.bounds;
+}
 void layer_add_child(Layer *parent, Layer *child) {
 	struct BaseLayer* base = &child->base;
 	base->parent = parent;
@@ -221,6 +249,8 @@ struct Window {
 	LIST_ENTRY(Window) next;
 	TAILQ_HEAD(, BaseLayer) layers;
 	WindowHandlers handlers;
+
+	GColor bcolor;
 };
 
 static LIST_HEAD(gs_window_list, Window) gs_window_list;
@@ -250,6 +280,9 @@ void window_stack_push(Window *window, bool animated) {
 	LIST_INSERT_HEAD(&gs_window_list, window, next);
 }
 
+void window_set_background_color(Window *window, GColor background_color) {
+	window->bcolor = background_color;
+}
 struct TextLayer {
 	struct BaseLayer base;
 	const char *text;
@@ -345,22 +378,68 @@ void pine_update_windows() {
 	}
 }
 
+struct app_timer_t {
+	LIST_ENTRY(app_timer_t) next;
+	AppTimerCallback callback;
+	void* callback_data;
+	uint32_t timeout_ms;
+};
+
+static LIST_HEAD(, app_timer_t) gs_app_timers = { 0 };
+
+AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void* callback_data) {
+	struct app_timer_t* t = (struct app_timer_t*)malloc(sizeof(*t));
+	t->callback = callback;
+	t->callback_data = callback_data;
+	t->timeout_ms = timeout_ms;
+
+	LIST_INSERT_HEAD(&gs_app_timers, t, next);
+}
+
+static uint32_t find_lowest_app_timer() {
+	struct app_timer_t* t;
+	uint32_t min = (uint32_t)-1;
+	LIST_FOREACH(t, &gs_app_timers, next) {
+		if (t->timeout_ms < min) min = t->timeout_ms;
+	}
+	return min;
+}
+
+static void update_and_run_app_timers(uint32_t delta) {
+	struct app_timer_t* t;
+	LIST_FOREACH(t, &gs_app_timers, next) {
+		if (t->timeout_ms <= delta) {
+			t->callback(t->callback_data);
+			LIST_REMOVE(t, next);
+		} else {
+			t->timeout_ms -= delta;
+		}
+	}
+}
 #define CHECK_AND_CALL_TIME(u,fn) if (tick_time.u != previous_tick_time.u) fn;
 
 void app_event_loop(void) {
 	time_t current_time;
 	struct tm previous_tick_time;
 	struct tm tick_time;
+	uint32_t time_to_wait;
+	PINE_EVENT_T e;
 
 	time(&current_time);
-	previous_tick_time = *localtime(&current_time);
+	memset(&previous_tick_time, 0, sizeof(previous_tick_time));
+	//previous_tick_time = *localtime(&current_time);
 
 	Window* w = LIST_FIRST(&gs_window_list);
 
 	if (w->handlers.load) w->handlers.load(w);
 
 	for (;;) {
-		psleep(1000);
+		time_to_wait = find_lowest_app_timer();
+		if (1000 < time_to_wait) time_to_wait = 1000;
+		e = PineWaitForEvent(&time_to_wait);
+
+		update_and_run_app_timers(time_to_wait);
+
 		time(&current_time);
 		tick_time = *localtime(&current_time);
 

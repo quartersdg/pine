@@ -33,9 +33,6 @@
     <ClInclude Include="PINE.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\simple-analog-master\src\simple_analog.h">
-      <Filter>app</Filter>
-    </ClInclude>
     <ClInclude Include="queue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -47,14 +44,17 @@
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\simple-analog-master\src\simple_analog.c">
-      <Filter>app</Filter>
-    </ClCompile>
     <ClCompile Include="PINEGUI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Pine.c">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\simple-analog-master\src\simple_analog.c">
+      <Filter>app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\bezier\src\bezier.c">
+      <Filter>app</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

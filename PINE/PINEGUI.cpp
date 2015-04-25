@@ -222,10 +222,32 @@ void PineDrawText(int x, int y, int w, int h, PINE_COLOR_T bcolor, PINE_COLOR_T 
 	DrawText(faceHDC, text, -1, &r, DT_BOTTOM);
 }
 
+int PineIs24hStyle()
+{
+	wchar_t buf[128];
+	GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_STIMEFORMAT, buf, sizeof(buf));
+	return wcschr(buf,L'H')!=NULL;
+}
 void PinePaintEnd()
 {
 	InvalidateRect(pineHwnd, NULL, FALSE);
 	//SendMessage(pineHwnd, WM_PAINT, 0, 0);
+}
+
+HANDLE gs_pine_event;
+
+PINE_EVENT_T PineWaitForEvent(uint32_t* timeout)
+{
+	DWORD result;
+	ULONGLONG start, end;
+	
+	start = GetTickCount64();
+	result = WaitForSingleObject(gs_pine_event, *timeout);
+	end = GetTickCount64();
+
+	*timeout = end - start;
+
+	return PINE_EVENT_TICK;
 }
 
 extern void main();
@@ -244,6 +266,7 @@ BOOL CALLBACK DialogProc(HWND hwnd,
 	{
 	case WM_INITDIALOG:
 		ResizeDialogToPixels(hwnd, PEBBLE_BASE_WIDTH, PEBBLE_BASE_HEIGHT);
+		gs_pine_event = CreateEvent(NULL, TRUE, FALSE, "pineevents");
 		pineHwnd = hwnd;
 		CreateThread(NULL, 0, AppThread, NULL, 0, &appThreadId);
 		return TRUE;
