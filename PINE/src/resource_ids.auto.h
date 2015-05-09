@@ -1,0 +1,1 @@
+//FAKE resource_ids.auto.h to make pine.c happy

@@ -53,13 +53,25 @@
     <ClCompile Include="..\simple-analog-master\src\simple_analog.c">
       <Filter>app</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\bezier\src\bezier.c">
+    <ClCompile Include="..\big_time\src\big_time.c">
+      <Filter>app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\bezier\src\bezier.c">
+      <Filter>app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\classio\src\classio.c">
+      <Filter>app</Filter>
+    </ClCompile>
+    <ClCompile Include="..\classio-battery-connection\src\classio.c">
       <Filter>app</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PINE.rc">
       <Filter>Resource Files</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="..\big_time\resources\big_time.rc">
+      <Filter>app</Filter>
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>

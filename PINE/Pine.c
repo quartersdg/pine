@@ -21,13 +21,11 @@ bool clock_is_24h_style(void) {
 
 void app_log(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt, ...) {
 	va_list va;
-	va_start(va,fmt);
-
-//	printf("[%s:%d] ", src_filename, src_line_number);
-//	vprintf(fmt, va);
-
+	va_start(va, fmt);
+	PineLog(log_level, src_filename, src_line_number, fmt, va);
 	va_end(va);
 }
+
 int32_t sin_lookup(int32_t angle) {
 	double a = (double)angle / TRIG_MAX_ANGLE;
 	a = a * M_PI * 2;
@@ -162,6 +160,7 @@ GFont fonts_get_system_font(const char *font_key) {
 enum {
 	USER_LAYER,
 	TEXT_LAYER,
+	BITMAP_LAYER,
 };
 
 static int layer_number = 0;
@@ -180,6 +179,18 @@ struct BaseLayer {
 struct Layer {
 	struct BaseLayer base;
 	LayerUpdateProc update;
+};
+struct TextLayer {
+	struct BaseLayer base;
+	const char *text;
+	GColor bcolor;
+	GColor tcolor;
+	GFont font;
+	GTextAlignment text_alignment;
+};
+struct BitmapLayer {
+	struct BaseLayer base;
+	GBitmap* bitmap;
 };
 
 static void base_layer_init(struct BaseLayer* l, GRect frame)
@@ -243,6 +254,8 @@ void layer_add_child(Layer *parent, Layer *child) {
 	base->parent = parent;
 	TAILQ_INSERT_TAIL(&parent->base.children, base, next);
 	parent->base.dirty = child->base.dirty = true;
+
+	gs_dirty = true;
 }
 
 struct Window {
@@ -283,13 +296,7 @@ void window_stack_push(Window *window, bool animated) {
 void window_set_background_color(Window *window, GColor background_color) {
 	window->bcolor = background_color;
 }
-struct TextLayer {
-	struct BaseLayer base;
-	const char *text;
-	GColor bcolor;
-	GColor tcolor;
-	GFont font;
-};
+
 TextLayer* text_layer_create(GRect frame) {
 	struct TextLayer* l = (struct TextLayer*)calloc(1, sizeof(struct TextLayer));
 	base_layer_init(l,frame);
@@ -309,6 +316,7 @@ Layer* text_layer_get_layer(TextLayer *text_layer) {
 void text_layer_set_text(TextLayer *text_layer, const char *text) {
 	if (text_layer->text) free(text_layer->text);
 	text_layer->text = _strdup(text);
+	gs_dirty = true;
 }
 
 void text_layer_set_background_color(TextLayer *text_layer, GColor color) {
@@ -321,6 +329,10 @@ void text_layer_set_text_color(TextLayer *text_layer, GColor color) {
 
 void text_layer_set_font(TextLayer *text_layer, GFont font) {
 	text_layer->font = font;
+}
+
+void text_layer_set_text_alignment(TextLayer *text_layer, GTextAlignment text_alignment) {
+	text_layer->text_alignment = text_alignment;
 }
 
 void fire_tick_handlers(struct tm* tick_time, TimeUnits u) {
@@ -339,6 +351,12 @@ void pine_draw_text_layer(struct TextLayer* tl) {
 		tl->text);
 }
 
+void pine_draw_bitmap_layer(struct BitmapLayer* bl) {
+	PineDrawBitmap(bl->base.bounds.origin.x, bl->base.bounds.origin.y,
+		bl->base.bounds.size.w, bl->base.bounds.size.h,
+		bl->bitmap);
+}
+
 void pine_update_child_layers(struct BaseLayer* l);
 
 void pine_update_layer(struct BaseLayer* l) {
@@ -353,6 +371,10 @@ void pine_update_layer(struct BaseLayer* l) {
 		if (ul->update) {
 			ul->update(l, &gs_ctx);
 		}
+		}
+		break;
+	case BITMAP_LAYER: {
+		pine_draw_bitmap_layer(l);
 		}
 		break;
 	}
@@ -372,6 +394,7 @@ void pine_update_child_layers(struct BaseLayer* l) {
 
 void pine_update_windows() {
 	Window* w = LIST_FIRST(&gs_window_list);
+	PineClear(w->bcolor);
 	struct BaseLayer* l;
 	TAILQ_FOREACH(l, &w->layers, next) {
 		pine_update_layers(l);
@@ -418,6 +441,23 @@ static void update_and_run_app_timers(uint32_t delta) {
 }
 #define CHECK_AND_CALL_TIME(u,fn) if (tick_time.u != previous_tick_time.u) fn;
 
+static BatteryStateHandler gs_battery_handler = NULL;
+
+static void handle_battery_callback(PineBatteryState pbs) {
+	BatteryChargeState s = { pbs.charge, pbs.charging, pbs.plugged };
+	if (gs_battery_handler) {
+		gs_battery_handler(s);
+	}
+}
+
+static BluetoothConnectionHandler gs_bluetooth_handler = NULL;
+
+static void handle_bluetooth_callback(bool c) {
+	if (gs_bluetooth_handler) {
+		gs_bluetooth_handler(c);
+	}
+}
+
 void app_event_loop(void) {
 	time_t current_time;
 	struct tm previous_tick_time;
@@ -452,12 +492,109 @@ void app_event_loop(void) {
 
 		previous_tick_time = tick_time;
 
+		if (PINE_EVENT_BATTERY == e) handle_battery_callback(PineGetBatteryState());
+		if (PINE_EVENT_BLUETOOTH == e) handle_bluetooth_callback(PineGetBluetoothConnected());
+
 		if (gs_dirty) {
 			PinePaintBegin();
-			PineClear();
 			pine_update_windows();
 			PinePaintEnd();
 			gs_dirty = false;
 		}
 	}
+}
+
+BitmapLayer* bitmap_layer_create(GRect frame) {
+	struct BitmapLayer* l = (struct BitmapLayer*)calloc(1, sizeof(*l));
+	base_layer_init(l, frame);
+	l->base.type = BITMAP_LAYER;
+	return l;
+}
+
+void bitmap_layer_destroy(BitmapLayer* bitmap_layer) {
+
+}
+
+Layer* bitmap_layer_get_layer(const BitmapLayer *bitmap_layer) {
+	return (Layer*)bitmap_layer;
+}
+
+const GBitmap* bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer) {
+	return NULL;
+}
+
+void bitmap_layer_set_bitmap(BitmapLayer *bitmap_layer, const GBitmap *bitmap) {
+	bitmap_layer->bitmap = bitmap->addr;
+}
+
+void bitmap_layer_set_alignment(BitmapLayer *bitmap_layer, GAlign alignment) {
+
+}
+
+void bitmap_layer_set_background_color(BitmapLayer *bitmap_layer, GColor color) {
+
+}
+
+void bitmap_layer_set_compositing_mode(BitmapLayer *bitmap_layer, GCompOp mode) {
+
+}
+
+GBitmap* gbitmap_create_with_resource(uint32_t resource_id) {
+	GBitmap* b = (GBitmap*)calloc(1,sizeof(*b));
+	b->addr = PineLoadBitmap(resource_id);
+	PPoint size = PineGetBitmapSize(b->addr);
+	b->bounds.origin.x = 0;
+	b->bounds.origin.y = 0;
+	b->bounds.size.w = size.x;
+	b->bounds.size.h = size.y;
+
+	return b;
+}
+
+void gbitmap_destroy(GBitmap* bitmap) {
+
+}
+
+void layer_remove_from_parent(Layer *c) {
+	struct BaseLayer* child = (struct BaseLayer*)c;
+	struct BaseLayer* parent = child->parent;
+	if (!parent) return;
+
+	TAILQ_REMOVE(&parent->children, child, next);
+}
+
+#undef vsnprintf
+int snprintf(char* buf, int len, char* fmt, ...) {
+	va_list va;
+	va_start(va, fmt);
+	int l = vsnprintf(buf, len, fmt, va);
+	va_end(va);
+	return l;
+}
+
+bool bluetooth_connection_service_peek(void) {
+	return PineGetBluetoothConnected();
+}
+
+void bluetooth_connection_service_subscribe(BluetoothConnectionHandler handler) {
+	gs_bluetooth_handler = handler;
+}
+
+void bluetooth_connection_service_unsubscribe(void) {
+	gs_bluetooth_handler = NULL;
+}
+
+void battery_state_service_subscribe(BatteryStateHandler handler) {
+	gs_battery_handler = handler;
+}
+
+void battery_state_service_unsubscribe(void) {
+	gs_battery_handler = NULL;
+}
+
+BatteryChargeState battery_state_service_peek(void) {
+	PineBatteryState pbs = PineGetBatteryState();
+	BatteryChargeState s = { pbs.charge, pbs.charging, pbs.plugged };
+
+	return s;
 }

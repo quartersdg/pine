@@ -15,8 +15,15 @@
 #define IDC_PINE				109
 #define IDC_BODY_PNG			110
 #define IDC_BODY_BMP			111
+#define IDC_LOG_BOX				112
+#define IDM_BLUETOOTH			113
+#define IDD_BATTERY_CHANGE		114
+#define IDM_BATTERY             115
 
-#define IDC_MYICON				2
+#define IDC_CHARGE				1002
+#define IDC_CHARGING			1003
+#define IDC_PLUGGED				1004
+
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif
