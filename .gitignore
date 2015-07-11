@@ -4,3 +4,5 @@ PINE/Debug/*
 *.sdf
 *.suo
 *~
+*/build/*
+*.APS

@@ -1,11 +1,11 @@
 #include <stdint.h>
-#define _USE_MATH_DEFINES
 #include <math.h>
 #include <time.h>
 #include <stdarg.h>
 #include "queue.h"
 #include "pebble.h"
 #include "PINEGUI.h"
+#include "PINE.h"
 
 #define DEFAULT_BOUNDS	GRect(0,0,144,168)
 
@@ -15,48 +15,11 @@
 	update those functions*/
 static bool gs_dirty = true;
 
-bool clock_is_24h_style(void) {
-	return PineIs24hStyle();
+void pine_something_is_dirty(void) {
+	gs_dirty = true;
 }
 
-void app_log(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt, ...) {
-	va_list va;
-	va_start(va, fmt);
-	PineLog(log_level, src_filename, src_line_number, fmt, va);
-	va_end(va);
-}
-
-int32_t sin_lookup(int32_t angle) {
-	double a = (double)angle / TRIG_MAX_ANGLE;
-	a = a * M_PI * 2;
-	double r = sin(a);
-	r = r * TRIG_MAX_ANGLE;
-	return (int32_t)r;
-}
-
-int32_t cos_lookup(int32_t angle) {
-	double a = (double)angle / TRIG_MAX_ANGLE;
-	a = a * M_PI * 2;
-	double r = cos(a);
-	r = r * TRIG_MAX_ANGLE;
-	return (int32_t)r;
-}
-
-PPoint rotate_point(float angle, GPoint p)
-{
-	PPoint r;
-	float s = sin(angle);
-	float c = cos(angle);
-
-	// rotate point
-	float xnew = p.x * c - p.y * s;
-	float ynew = p.x * s + p.y * c;
-
-	// translate point back:
-	r.x = xnew;
-	r.y = ynew;
-	return r;
-}
+#pragma region TickTimer
 struct TickTimerServiceEntry {
 	LIST_ENTRY(TickTimerServiceEntry) next;
 	TimeUnits units;
@@ -76,6 +39,16 @@ void tick_timer_service_unsubscribe(void) {
 
 }
 
+void fire_tick_handlers(struct tm* tick_time, TimeUnits u) {
+	struct TickTimerServiceEntry* e;
+	LIST_FOREACH(e, &TickTimerServiceList, next) {
+		if (e->units & u) {
+			e->handler(tick_time, u);
+		}
+	}
+}
+#pragma endregion
+
 GPoint grect_center_point(const GRect *rect) {
 	return GPoint(rect->origin.x + rect->size.w / 2, rect->origin.y + rect->size.h / 2);
 }
@@ -84,6 +57,10 @@ struct GContext {
 	GColor stroke_color;
 	GColor fill_color;
 } gs_ctx;
+
+void* pine_get_global_context(void) {
+	return (void*)&gs_ctx;
+}
 
 void graphics_context_set_stroke_color(GContext* ctx, GColor color) {
 	ctx->stroke_color = color;
@@ -103,174 +80,34 @@ void graphics_fill_rect(GContext* ctx, GRect rect, uint16_t corner_radius, GCorn
 	PineDrawRectFilled(ctx->fill_color,rect.origin.x, rect.origin.y, rect.size.w, rect.size.h);
 }
 
-GPath* gpath_create(const GPathInfo *init) {
-	GPath* p = (GPath*)calloc(1,sizeof(GPath));
-	p->num_points = init->num_points;
-	p->points = (GPoint*)calloc(init->num_points, sizeof(GPoint));
-	memcpy(p->points, init->points, init->num_points * sizeof(GPoint));
-	return p;
-}
-
-void gpath_destroy(GPath* gpath) {
-	free(gpath->points);
-	free(gpath);
-}
-
-static PPoint* rotate_and_offset_gpath(GPath* path) {
-	PPoint* points = (PPoint*)malloc(path->num_points * sizeof(PPoint));
-	double a = (double)path->rotation / TRIG_MAX_ANGLE;
-	a = a * M_PI * 2;
-
-	for (int i = 0; i < path->num_points; i++) {
-		points[i] = rotate_point(a, path->points[i]);
-		points[i].x += path->offset.x;
-		points[i].y += path->offset.y;
-	}
-	return points;
-}
-
-void gpath_draw_filled(GContext* ctx, GPath *path) {
-	PPoint* points = rotate_and_offset_gpath(path);
-
-	PineDrawPolyFilled(path->num_points, points);
-
-	free(points);
-}
-
-void gpath_draw_outline(GContext* ctx, GPath *path) {
-	PPoint* points = rotate_and_offset_gpath(path);
-
-	PineDrawPolyLine(path->num_points, points);
-
-	free(points);
-}
-
-void gpath_rotate_to(GPath *path, int32_t angle) {
-	path->rotation = angle;
-}
-
-void gpath_move_to(GPath *path, GPoint point) {
-	path->offset = point;
+void graphics_fill_circle(GContext* ctx, GPoint p, uint16_t radius) {
+	PineDrawCircleFilled(ctx->fill_color, p.x, p.y, radius);
 }
 
 GFont fonts_get_system_font(const char *font_key) {
 	return (GFont)PineGetSystemFont(font_key);
 }
 
-enum {
-	USER_LAYER,
-	TEXT_LAYER,
-	BITMAP_LAYER,
-};
-
-static int layer_number = 0;
-struct BaseLayer {
-	int number;
-	TAILQ_ENTRY(BaseLayer) next;
-	TAILQ_HEAD(, BaseLayer) children;
-	struct BaseLayer* parent;
-	int type;
-	GRect bounds;
-	bool clips;
-	bool hidden;
-	bool dirty;
-};
-
-struct Layer {
-	struct BaseLayer base;
-	LayerUpdateProc update;
-};
-struct TextLayer {
-	struct BaseLayer base;
-	const char *text;
-	GColor bcolor;
-	GColor tcolor;
-	GFont font;
-	GTextAlignment text_alignment;
-};
-struct BitmapLayer {
-	struct BaseLayer base;
-	GBitmap* bitmap;
-};
-
-static void base_layer_init(struct BaseLayer* l, GRect frame)
-{
-	l->number = layer_number++;
-	l->bounds = frame;
-	l->clips = true;
-	l->hidden = false;
-	l->dirty = true;
-	TAILQ_INIT(&l->children);
-}
-
-static void base_layer_destroy(struct BaseLayer* l)
-{
-	if (l->parent) {
-		struct BaseLayer* parent = l->parent;
-		TAILQ_REMOVE(&parent->children, l, next);
-	}
-}
-
-Layer* layer_create(GRect frame) {
-	Layer* l = calloc(1,sizeof(struct Layer));
-	base_layer_init(l,frame);
-	l->base.type = USER_LAYER;
-	return l;
-}
-
-void layer_destroy(Layer* layer) {
-	base_layer_destroy(&layer->base);
-	free(layer);
-}
-
-void layer_mark_dirty(Layer *layer) {
-	gs_dirty = layer->base.dirty = true;
-}
-
-void layer_set_update_proc(Layer *layer, LayerUpdateProc update_proc) {
-	layer->update = update_proc;
-}
-
-GRect layer_get_bounds(const Layer *layer) {
-	return layer->base.bounds;
-}
-
-GRect layer_get_relative_frame(const Layer *layer, const GRect r) {
-	GRect f;
-	f.origin.x = r.origin.x - layer->base.bounds.origin.x;
-	f.origin.y = r.origin.y - layer->base.bounds.origin.y;
-	f.size.w = r.size.w - layer->base.bounds.size.w;
-	f.size.h = r.size.h - layer->base.bounds.size.h;
-	return f;
-}
-
-GRect layer_get_frame(const Layer *layer) {
-	if (layer->base.parent)
-		return layer_get_relative_frame(layer->base.parent, layer->base.bounds);
-	return layer->base.bounds;
-}
-void layer_add_child(Layer *parent, Layer *child) {
-	struct BaseLayer* base = &child->base;
-	base->parent = parent;
-	TAILQ_INSERT_TAIL(&parent->base.children, base, next);
-	parent->base.dirty = child->base.dirty = true;
-
-	gs_dirty = true;
-}
-
+static int num_windows = 0;
 struct Window {
 	LIST_ENTRY(Window) next;
 	TAILQ_HEAD(, BaseLayer) layers;
+	int number;
 	WindowHandlers handlers;
 
 	GColor bcolor;
+
+	ClickConfigProvider click_config_provider;
+	void* click_config_context;
+	bool click_config_provider_called;
 };
 
 static LIST_HEAD(gs_window_list, Window) gs_window_list;
 
 Window* window_create(void) {
 	struct Window *w = (struct Window*)calloc(1,sizeof(struct Window));
-	LIST_INSERT_HEAD(&gs_window_list, w, next);
+	w->number = ++num_windows;
+//	LIST_INSERT_HEAD(&gs_window_list, w, next);
 	TAILQ_INIT(&w->layers);
 	struct BaseLayer* base = (struct BaseLayer*)layer_create(DEFAULT_BOUNDS);
 	TAILQ_INSERT_HEAD(&w->layers, base, next);
@@ -286,118 +123,34 @@ void window_set_window_handlers(Window *window, WindowHandlers handlers) {
 }
 
 struct Layer* window_get_root_layer(const Window *window) {
-	return TAILQ_FIRST(&window->layers);
+	return (struct Layer*)TAILQ_FIRST(&window->layers);
 }
 
 void window_stack_push(Window *window, bool animated) {
 	LIST_INSERT_HEAD(&gs_window_list, window, next);
+	window->click_config_provider_called = false;
+}
+
+Window* window_stack_pop(bool animated) {
+	if (LIST_EMPTY(&gs_window_list)) return NULL;
+	Window* w = LIST_FIRST(&gs_window_list);
+	if (NULL == LIST_NEXT(w,next)) return NULL;
+	LIST_REMOVE(w, next);
+	LIST_NEXT(w,next)->click_config_provider_called = false;
+	return w;
 }
 
 void window_set_background_color(Window *window, GColor background_color) {
 	window->bcolor = background_color;
 }
 
-TextLayer* text_layer_create(GRect frame) {
-	struct TextLayer* l = (struct TextLayer*)calloc(1, sizeof(struct TextLayer));
-	base_layer_init(l,frame);
-	l->base.type = TEXT_LAYER;
-	return l;
-}
-
-void text_layer_destroy(TextLayer* text_layer) {
-	base_layer_destroy(&text_layer->base);
-	free(text_layer);
-}
-
-Layer* text_layer_get_layer(TextLayer *text_layer) {
-	return (Layer*)text_layer;
-}
-
-void text_layer_set_text(TextLayer *text_layer, const char *text) {
-	if (text_layer->text) free(text_layer->text);
-	text_layer->text = _strdup(text);
-	gs_dirty = true;
-}
-
-void text_layer_set_background_color(TextLayer *text_layer, GColor color) {
-	text_layer->bcolor = color;
-}
-
-void text_layer_set_text_color(TextLayer *text_layer, GColor color) {
-	text_layer->tcolor = color;
-}
-
-void text_layer_set_font(TextLayer *text_layer, GFont font) {
-	text_layer->font = font;
-}
-
-void text_layer_set_text_alignment(TextLayer *text_layer, GTextAlignment text_alignment) {
-	text_layer->text_alignment = text_alignment;
-}
-
-void fire_tick_handlers(struct tm* tick_time, TimeUnits u) {
-	struct TickTimerServiceEntry* e;
-	LIST_FOREACH(e, &TickTimerServiceList, next) {
-		if (e->units & u) {
-			e->handler(tick_time, u);
-		}
-	}
-}
-
-void pine_draw_text_layer(struct TextLayer* tl) {
-	PineDrawText(tl->base.bounds.origin.x, tl->base.bounds.origin.y,
-		tl->base.bounds.size.w, tl->base.bounds.size.h,
-		tl->bcolor, tl->tcolor, tl->font,
-		tl->text);
-}
-
-void pine_draw_bitmap_layer(struct BitmapLayer* bl) {
-	PineDrawBitmap(bl->base.bounds.origin.x, bl->base.bounds.origin.y,
-		bl->base.bounds.size.w, bl->base.bounds.size.h,
-		bl->bitmap);
-}
-
-void pine_update_child_layers(struct BaseLayer* l);
-
-void pine_update_layer(struct BaseLayer* l) {
-	switch (l->type) {
-	case TEXT_LAYER: {
-		struct TextLayer* tl = (struct TextLayer*)l;
-		pine_draw_text_layer(tl);
-		}
-		break;
-	case USER_LAYER: {
-		struct Layer* ul = (struct Layer*)l;
-		if (ul->update) {
-			ul->update(l, &gs_ctx);
-		}
-		}
-		break;
-	case BITMAP_LAYER: {
-		pine_draw_bitmap_layer(l);
-		}
-		break;
-	}
-	pine_update_child_layers(l);
-}
-
-void pine_update_layers(struct BaseLayer* l) {
-	pine_update_layer(l);
-}
-
-void pine_update_child_layers(struct BaseLayer* l) {
-	struct BaseLayer* c;
-	TAILQ_FOREACH(c, &l->children, next) {
-		pine_update_layer(c);
-	}
-}
-
-void pine_update_windows() {
+static void pine_update_windows() {
 	Window* w = LIST_FIRST(&gs_window_list);
-	PineClear(w->bcolor);
-	struct BaseLayer* l;
-	TAILQ_FOREACH(l, &w->layers, next) {
-		pine_update_layers(l);
+	{
+		struct BaseLayer* l;
+		TAILQ_FOREACH(l, &w->layers, next) {
+			pine_update_layers(l);
+		}
 	}
 }
 
@@ -417,6 +170,8 @@ AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, voi
 	t->timeout_ms = timeout_ms;
 
 	LIST_INSERT_HEAD(&gs_app_timers, t, next);
+
+	return (AppTimer*)t;
 }
 
 static uint32_t find_lowest_app_timer() {
@@ -458,6 +213,104 @@ static void handle_bluetooth_callback(bool c) {
 	}
 }
 
+
+void window_set_click_config_provider(Window *window, ClickConfigProvider click_config_provider) {
+	window->click_config_provider = click_config_provider;
+	window->click_config_provider_called = false;
+	window->click_config_context = window;
+}
+
+void window_set_fullscreen(Window *window, bool enabled) {
+	/* TODO: Figure out if I want to bother with this */
+}
+
+static ClickHandler gs_clickHandlers[NUM_BUTTONS] = { 0 };
+typedef struct LongClickHandler {
+	ClickHandler down;
+	ClickHandler up;
+	uint16_t delay_ms;
+} LongClickHandler;
+static LongClickHandler gs_longClickHandlers[NUM_BUTTONS] = { 0 };
+typedef struct RepeatingClickHandler {
+	ClickHandler handler;
+	uint16_t repeat_interval_ms;
+} RepeatingClickHandler;
+static RepeatingClickHandler gs_repeatingClickHandlers[NUM_BUTTONS] = { 0 };
+
+void window_single_click_subscribe(ButtonId button_id, ClickHandler handler) {
+	gs_clickHandlers[button_id] = handler;
+}
+
+void window_long_click_subscribe(ButtonId button_id, uint16_t delay_ms, ClickHandler down_handler, ClickHandler up_handler) {
+	if (button_id == BUTTON_ID_BACK) return;
+	gs_longClickHandlers[button_id].down = down_handler;
+	gs_longClickHandlers[button_id].up = up_handler;
+	gs_longClickHandlers[button_id].delay_ms = delay_ms;
+}
+
+void window_single_repeating_click_subscribe(ButtonId button_id, uint16_t repeat_interval_ms, ClickHandler handler) {
+	if (button_id == BUTTON_ID_BACK) return;
+	gs_repeatingClickHandlers[button_id].handler = handler;
+	gs_repeatingClickHandlers[button_id].repeat_interval_ms = repeat_interval_ms;
+}
+
+static void init_click_handlers(void) {
+	memset(gs_clickHandlers, 0, sizeof(gs_clickHandlers));
+	memset(gs_longClickHandlers, 0, sizeof(gs_longClickHandlers));
+	memset(gs_repeatingClickHandlers, 0, sizeof(gs_repeatingClickHandlers));
+}
+
+size_t pine_strftime(char * _Buf, size_t _SizeInBytes, const char * _Format, const struct tm * _Tm) {
+	if (0 == strcmp(_Format, "%T")) {
+		_Format = "%H:%M:%S";
+	}
+	return strftime(_Buf, _SizeInBytes, _Format, _Tm);
+}
+
+static void check_click_handlers(PINE_EVENT_T e) {
+	Window* w = LIST_FIRST(&gs_window_list);
+	if (!w) return;
+	if (!w->click_config_provider_called) {
+		init_click_handlers();
+		if (w->click_config_provider) {
+			w->click_config_provider(w->click_config_context);
+		}
+		w->click_config_provider_called = true;
+	}
+}
+
+
+#define MAGIC_PUSH_TIME 500
+
+ static void handle_click(PINE_EVENT_T e) {
+	 static uint64_t press_start;
+	 uint64_t press_end;
+	 char down;
+	 char button;
+	 down = ((e - PINE_EVENT_BUTTON0_DOWN) % 2) == 0;
+	 button = ((e - PINE_EVENT_BUTTON0_DOWN) / 2);
+
+	 if (down) {
+		 press_start = clock();
+	 } else {
+		 press_end = clock();
+		 if (press_end - press_start > MAGIC_PUSH_TIME)
+		 {
+			 if (gs_longClickHandlers[button].down) {
+				 gs_longClickHandlers[button].down(NULL, NULL);
+			 }
+		 }
+		 if (gs_clickHandlers[button]) {
+			 gs_clickHandlers[button](NULL, 0);
+		 } else {
+			 if (PINE_EVENT_BUTTON0_DOWN == e) {
+				 window_stack_pop(false);
+				 gs_dirty = true;
+			 }
+		 }
+	 }
+}
+
 void app_event_loop(void) {
 	time_t current_time;
 	struct tm previous_tick_time;
@@ -478,6 +331,7 @@ void app_event_loop(void) {
 		if (1000 < time_to_wait) time_to_wait = 1000;
 		e = PineWaitForEvent(&time_to_wait);
 
+		check_click_handlers(e);
 		update_and_run_app_timers(time_to_wait);
 
 		time(&current_time);
@@ -494,6 +348,9 @@ void app_event_loop(void) {
 
 		if (PINE_EVENT_BATTERY == e) handle_battery_callback(PineGetBatteryState());
 		if (PINE_EVENT_BLUETOOTH == e) handle_bluetooth_callback(PineGetBluetoothConnected());
+		if (PINE_EVENT_BUTTON0_DOWN <= e && PINE_EVENT_BUTTON3_UP >= e) {
+			handle_click(e);
+		}
 
 		if (gs_dirty) {
 			PinePaintBegin();
@@ -504,55 +361,21 @@ void app_event_loop(void) {
 	}
 }
 
-BitmapLayer* bitmap_layer_create(GRect frame) {
-	struct BitmapLayer* l = (struct BitmapLayer*)calloc(1, sizeof(*l));
-	base_layer_init(l, frame);
-	l->base.type = BITMAP_LAYER;
-	return l;
-}
-
-void bitmap_layer_destroy(BitmapLayer* bitmap_layer) {
-
-}
-
-Layer* bitmap_layer_get_layer(const BitmapLayer *bitmap_layer) {
-	return (Layer*)bitmap_layer;
-}
-
-const GBitmap* bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer) {
-	return NULL;
-}
-
-void bitmap_layer_set_bitmap(BitmapLayer *bitmap_layer, const GBitmap *bitmap) {
-	bitmap_layer->bitmap = bitmap->addr;
-}
-
-void bitmap_layer_set_alignment(BitmapLayer *bitmap_layer, GAlign alignment) {
-
-}
-
-void bitmap_layer_set_background_color(BitmapLayer *bitmap_layer, GColor color) {
-
-}
-
-void bitmap_layer_set_compositing_mode(BitmapLayer *bitmap_layer, GCompOp mode) {
-
-}
-
 GBitmap* gbitmap_create_with_resource(uint32_t resource_id) {
 	GBitmap* b = (GBitmap*)calloc(1,sizeof(*b));
 	b->addr = PineLoadBitmap(resource_id);
 	PPoint size = PineGetBitmapSize(b->addr);
 	b->bounds.origin.x = 0;
 	b->bounds.origin.y = 0;
-	b->bounds.size.w = size.x;
-	b->bounds.size.h = size.y;
+	b->bounds.size.w = (int16_t)size.x;
+	b->bounds.size.h = (int16_t)size.y;
 
 	return b;
 }
 
 void gbitmap_destroy(GBitmap* bitmap) {
-
+	PineFreeBitmap(bitmap->addr);
+	free(bitmap);
 }
 
 void layer_remove_from_parent(Layer *c) {

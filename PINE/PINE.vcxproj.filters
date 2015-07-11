@@ -50,7 +50,14 @@
     <ClCompile Include="Pine.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-<!-- APP ENTRY LOCATION -->
+
+    <ClCompile Include="../big_time/src/big_time.c">
+      <Filter>app</Filter>
+    </ClCompile>
+
+    <ResourceCompile Include="../big_time/build/src/big_time.rc">
+      <Filter>app</Filter>
+    </ResourceCompile>
     <ClCompile Include="pine_misc.c">
       <Filter>Source Files</Filter>
     </ClCompile>

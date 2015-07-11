@@ -51,15 +51,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
 <!-- APP ENTRY LOCATION -->
-    <ClCompile Include="pine_misc.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pine_gpath.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="pine_layer.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PINE.rc">

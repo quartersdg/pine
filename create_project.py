@@ -81,6 +81,8 @@ resource_ids_footer = """
 
 """;
 
+if not os.path.exists(appdir+"/build/src/"):
+	os.makedirs(appdir+"/build/src/")
 with open(appdir+"/build/src/resource_ids.auto.h","w") as idhf:
     idhf.write(resource_ids_header);
     resources = appinfo["resources"]
