@@ -81,7 +81,11 @@ void graphics_fill_rect(GContext* ctx, GRect rect, uint16_t corner_radius, GCorn
 }
 
 void graphics_fill_circle(GContext* ctx, GPoint p, uint16_t radius) {
-	PineDrawCircleFilled(ctx->fill_color, p.x, p.y, radius);
+    PineDrawCircleFilled(ctx->fill_color, p.x, p.y, radius);
+}
+
+void graphics_draw_circle(GContext* ctx, GPoint p, uint16_t radius) {
+    PineDrawCircle(ctx->fill_color, p.x, p.y, radius);
 }
 
 GFont fonts_get_system_font(const char *font_key) {
@@ -386,6 +390,7 @@ void layer_remove_from_parent(Layer *c) {
 	TAILQ_REMOVE(&parent->children, child, next);
 }
 
+#if 0
 #undef vsnprintf
 int snprintf(char* buf, int len, char* fmt, ...) {
 	va_list va;
@@ -394,6 +399,7 @@ int snprintf(char* buf, int len, char* fmt, ...) {
 	va_end(va);
 	return l;
 }
+#endif
 
 bool bluetooth_connection_service_peek(void) {
 	return PineGetBluetoothConnected();

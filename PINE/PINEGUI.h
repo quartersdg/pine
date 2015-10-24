@@ -44,7 +44,8 @@ extern "C" {
 	void PineDrawPolyFilled(int num_points, PPoint*);
 	void PineDrawPolyLine(int num_points, PPoint*);
 	void PineDrawRectFilled(PINE_COLOR_T c, int x, int y, int w, int h);
-	void PineDrawCircleFilled(PINE_COLOR_T c, int x, int y, int radius);
+    void PineDrawCircleFilled(PINE_COLOR_T c, int x, int y, int radius);
+    void PineDrawCircle(PINE_COLOR_T c, int x, int y, int radius);
 
 	void* PineGetSystemFont(const char* font_key);
 	void PineDrawText(int x, int y, int w, int h, PINE_COLOR_T bcolor, PINE_COLOR_T tcolor, void* font, const char* text);
