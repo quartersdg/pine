@@ -200,12 +200,7 @@ void PineDrawRectFilled(PINE_COLOR_T c, int x, int y, int w, int h)
 
 void PineDrawCircleFilled(PINE_COLOR_T c, int x, int y, int radius)
 {
-    Ellipse(faceHDC, x - radius, y - radius, x + radius, y + radius);
-}
-
-void PineDrawCircle(PINE_COLOR_T c, int x, int y, int radius)
-{
-    Arc(faceHDC, x - radius, y - radius, x + radius, y + radius, x-radius,0,x-radius,0);
+	Ellipse(faceHDC, x - radius, y - radius, x + radius, y + radius);
 }
 
 
