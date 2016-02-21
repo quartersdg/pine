@@ -29,62 +29,22 @@
 #define MAX_LOADSTRING 100
 
 // Global Variables:
-HINSTANCE hInst;								// current instance
 TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// the main window class name
 
-#define PEBBLE_BASE_WIDTH 236
-#define PEBBLE_BASE_HEIGHT 394
+extern "C" {
+    int PEBBLE_BASE_WIDTH = 236;
+    int PEBBLE_BASE_HEIGHT = 394;
 
-#define PEBBLE_BASE_FACE_X 43
-#define PEBBLE_BASE_FACE_Y 106
-
-#define PEBBLE_FACE_WIDTH 144
-#define PEBBLE_FACE_HEIGHT 168
-
-static int watch_base = 2;
-
-
-int PineColorToBrush(PINE_COLOR_T c)
-{
-	switch (c) {
-	case PINE_COLOR_BLACK:
-		return BLACK_BRUSH;
-		break;
-	case PINE_COLOR_WHITE:
-		return WHITE_BRUSH;
-		break;
-	}
-}
-
-int PineColorToPen(PINE_COLOR_T c)
-{
-	switch (c) {
-	case PINE_COLOR_BLACK:
-		return BLACK_PEN;
-		break;
-	case PINE_COLOR_WHITE:
-		return WHITE_PEN;
-		break;
-	}
-}
-
-COLORREF PineColorToColorRef(PINE_COLOR_T c)
-{
-	switch (c) {
-	case PINE_COLOR_BLACK:
-		return RGB(0, 0, 0);
-		break;
-	case PINE_COLOR_WHITE:
-		return RGB(255, 255, 255);
-		break;
-	}
-}
-
+    HINSTANCE hInst;
+    HWND pineHwnd;
+    HDC faceHDC;
+    HBITMAP faceBitmap;
+};
 
 void ResizeDialogToPixels(HWND hwnd, DWORD w, DWORD h)
 {
-	RECT r = { 0, 0, w, h };
+	RECT r = { 0, 0, (LONG)w, (LONG)h };
 	MapDialogRect(hwnd, &r);
 
 	RECT cr;
@@ -94,176 +54,33 @@ void ResizeDialogToPixels(HWND hwnd, DWORD w, DWORD h)
 
 	double mx = (double)w / r.right;
 	double my = (double)h / r.bottom;
-	r.right = (r.right * mx) + (wr.right - cr.right);
-	r.bottom = (r.bottom * my) + (wr.bottom - cr.bottom);
+	r.right = (LONG)((r.right * mx) + (wr.right - cr.right));
+	r.bottom = (LONG)((r.bottom * my) + (wr.bottom - cr.bottom));
 	SetWindowPos(hwnd, NULL, 0, 0, r.right, r.bottom, SWP_NOMOVE | SWP_SHOWWINDOW);
 }
 
-HWND pineHwnd;
-HDC faceHDC;
-HBITMAP faceBitmap;
-
-void PinePaintBegin()
-{
-	PAINTSTRUCT ps;
-	HDC hdc = BeginPaint(pineHwnd, &ps);
-
-	faceHDC = CreateCompatibleDC(hdc);
-	faceBitmap = CreateCompatibleBitmap(hdc, PEBBLE_FACE_WIDTH, PEBBLE_FACE_HEIGHT);
-	SelectObject(faceHDC, faceBitmap);
-
-	EndPaint(pineHwnd, &ps);
-}
-
-void PineClear(PINE_COLOR_T bg)
-{
-	RECT r = { 0, 0, PEBBLE_FACE_WIDTH, PEBBLE_FACE_HEIGHT };
-	FillRect(faceHDC, &r, (HBRUSH)GetStockObject(PineColorToBrush(bg)));
-}
-
-void PinePaint()
-{
-	HDC hdc;
-	PAINTSTRUCT ps;
-	hdc = BeginPaint(pineHwnd, &ps);
-
-	HDC chdc = CreateCompatibleDC(hdc);
-	HBITMAP bitmap = LoadBitmap(hInst, MAKEINTRESOURCE(IDC_BODY_BMP));
-
-	SelectObject(chdc, bitmap);
-	BitBlt(hdc, 0, 0, PEBBLE_BASE_WIDTH, PEBBLE_BASE_HEIGHT, chdc, 0, watch_base * PEBBLE_BASE_HEIGHT, SRCCOPY);
-
-	RECT r = { PEBBLE_BASE_FACE_X, PEBBLE_BASE_FACE_Y, PEBBLE_BASE_FACE_X + PEBBLE_FACE_WIDTH, PEBBLE_BASE_FACE_Y + PEBBLE_FACE_HEIGHT };
-	//FillRect(hdc, &r, (HBRUSH)(0));
-
-	BitBlt(hdc, PEBBLE_BASE_FACE_X, PEBBLE_BASE_FACE_Y, PEBBLE_FACE_WIDTH, PEBBLE_FACE_HEIGHT, faceHDC, 0, 0, SRCCOPY);
-
-	EndPaint(pineHwnd, &ps);
-}
-
-extern "C" void psleep(int millis)
-{
-	Sleep(millis);
-}
-
-void PineLog(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt, va_list va)
-{
-	const char* basename;
-	char msg[1024];
-	int off;
-
-	basename = strrchr(src_filename, '\\');
-	if (NULL == basename)
-		basename = strrchr(src_filename, '/');
-	if (NULL == basename)
-		basename = "";
-	basename++;
-
-	off = _snprintf(msg, 1024, "[%s:%d] ", basename, src_line_number);
-	vsnprintf(msg + off, 1024 - off, fmt, va);
-
-	std::cout << msg << std::endl;
-}
-
-
-void PineSetBrushColor(PINE_COLOR_T c)
-{
-	SelectObject(faceHDC, GetStockObject(PineColorToPen(c)));
-}
-
-void PineSetFillColor(PINE_COLOR_T c)
-{
-	SelectObject(faceHDC, GetStockObject(PineColorToBrush(c)));
-}
-
-void PineDrawLine(int x1, int y1, int x2, int y2)
-{
-	MoveToEx(faceHDC, x1, y1, NULL);
-	LineTo(faceHDC, x2, y2);
-}
-
-void PineDrawPolyFilled(int num_points, PPoint* points)
-{
-	Polygon(faceHDC, (PPOINT)points, num_points);
-}
-
-void PineDrawPolyLine(int num_points, PPoint* points)
-{
-	Polyline(faceHDC, (PPOINT)points, num_points);
-}
-
-void PineDrawRectFilled(PINE_COLOR_T c, int x, int y, int w, int h)
-{
-	RECT r = { x, y, x + w, y + h };
-	FillRect(faceHDC, &r, (HBRUSH)GetStockObject(PineColorToBrush(c)));
-}
-
-void PineDrawCircleFilled(PINE_COLOR_T c, int x, int y, int radius)
-{
-	Ellipse(faceHDC, x - radius, y - radius, x + radius, y + radius);
-}
-
-
-#include "pebble_fonts.h"
-typedef struct PINE_SYSTEM_FONT_T {
-	const char* font_key;
-	const char* system_font;
-	int height;
-	bool bold;
-} PINE_SYSTEM_FONT_T;
-static PINE_SYSTEM_FONT_T gs_system_fonts[] = {
-	{ FONT_KEY_GOTHIC_14, "Impact", 14, false },
-	{ FONT_KEY_GOTHIC_14_BOLD, "Impact", 14, true },
-	{ FONT_KEY_GOTHIC_18, "Impact", 18, false },
-	{ FONT_KEY_GOTHIC_18_BOLD, "Impact", 18, true },
-	{ FONT_KEY_GOTHIC_24, "Impact", 24, false },
-	{ FONT_KEY_GOTHIC_24_BOLD, "Impact", 24, true },
-	{ FONT_KEY_GOTHIC_28, "Impact", 28, false },
-	{ FONT_KEY_GOTHIC_28_BOLD, "Impact", 28, true },
-	{ FONT_KEY_BITHAM_30_BLACK, "Franklin Gothic", 14, false },
-	{ FONT_KEY_BITHAM_42_BOLD, "Franklin Gothic", 14, false },
-	{ FONT_KEY_BITHAM_42_LIGHT, "Franklin Gothic", 14, false },
-	{ FONT_KEY_BITHAM_42_MEDIUM_NUMBERS, "Franklin Gothic", 14, false },
-	{ FONT_KEY_BITHAM_34_MEDIUM_NUMBERS, "Franklin Gothic", 14, false },
-	{ FONT_KEY_BITHAM_34_LIGHT_SUBSET, "Franklin Gothic", 14, false },
-	{ FONT_KEY_BITHAM_18_LIGHT_SUBSET, "Franklin Gothic", 14, false },
-	{ FONT_KEY_ROBOTO_CONDENSED_21, "Franklin Gothic", 14, false },
-	{ FONT_KEY_ROBOTO_BOLD_SUBSET_49, "Franklin Gothic", 14, false },
-	{ FONT_KEY_DROID_SERIF_28_BOLD, "Franklin Gothic", 14, false },
-	{ FONT_KEY_FONT_FALLBACK, "Franklin Gothic", 14, false },
-	{ 0 },
-};
-
-void* PineGetSystemFont(const char* font_key)
-{
-	PINE_SYSTEM_FONT_T* f = &gs_system_fonts[0];
-	for (; f->font_key; f++) {
-		if (0 == strcmp(font_key, f->font_key)) break;
-	}
-
-	if (!f->font_key) return NULL;
-
-	HFONT hf = CreateFont(-f->height, 0, 0, 0, f->bold ? FW_BOLD : FW_DONTCARE, 0, 0, 0, DEFAULT_CHARSET, 0, 0, 0, 0, f->system_font);
-	
-	return hf;
-}
-
-void PineDrawText(int x, int y, int w, int h, PINE_COLOR_T bcolor, PINE_COLOR_T tcolor, void* font, const char* text)
-{
-	RECT r;
-	int oldmode;
-	SetRect(&r, x, y, x + w, y + h);
-	SetTextColor(faceHDC, PineColorToColorRef(tcolor));
-	if (bcolor == PINE_COLOR_CLEAR) {
-		oldmode = SetBkMode(faceHDC, TRANSPARENT);
-	} else {
-		SetBkColor(faceHDC, PineColorToColorRef(bcolor));
-	}
-	SelectObject(faceHDC, (HFONT)font);
-	DrawText(faceHDC, text, -1, &r, DT_BOTTOM);
-	if (bcolor == PINE_COLOR_CLEAR) {
-		SetBkMode(faceHDC, oldmode);
-	}
+static DWORD gs_compMode = SRCCOPY;
+void PineSetBitmapCompMode(PineCompOp comp_mode) {
+    switch (comp_mode) {
+    case PineCompOpAssign:
+        gs_compMode = SRCCOPY;
+        break;
+    case PineCompOpAssignInverted:
+        gs_compMode = SRCINVERT;
+        break;
+    case PineCompOpOr:
+        gs_compMode = SRCPAINT;
+        break;
+    case PineCompOpAnd:
+        gs_compMode = SRCAND;
+        break;
+    case PineCompOpClear:
+        gs_compMode = SRCERASE;
+        break;
+    case PineCompOpSet:
+        gs_compMode = NOTSRCCOPY;
+        break;
+    }
 }
 
 void PineDrawBitmap(int x, int y, int w, int h, void* bitmap)
@@ -275,25 +92,7 @@ void PineDrawBitmap(int x, int y, int w, int h, void* bitmap)
 	HDC chdc = CreateCompatibleDC(faceHDC);
 
 	SelectObject(chdc, hb);
-	BitBlt(faceHDC, x, y, w, h, chdc, 0, 0, SRCCOPY);
-}
-
-extern "C" bool clock_is_24h_style(void) {
-	wchar_t buf[128];
-	GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_STIMEFORMAT, buf, sizeof(buf));
-	return wcschr(buf,L'H')!=NULL;
-}
-
-void PinePaintEnd()
-{
-	InvalidateRect(pineHwnd, NULL, FALSE);
-	//SendMessage(pineHwnd, WM_PAINT, 0, 0);
-}
-
-PineBatteryState gs_pbs = { 75, 1, 1 };
-PineBatteryState PineGetBatteryState()
-{
-	return gs_pbs;
+	BitBlt(faceHDC, x, y, w, h, chdc, 0, 0, gs_compMode);
 }
 
 static CRITICAL_SECTION gs_cs;
@@ -309,7 +108,7 @@ PINE_EVENT_T PineWaitForEvent(uint32_t* timeout)
 	result = WaitForSingleObject(gs_event, *timeout);
 	end = GetTickCount64();
 
-	*timeout = end - start;
+	*timeout = (uint32_t)(end - start);
 
 	EnterCriticalSection(&gs_cs);
 	PINE_EVENT_T e = PINE_EVENT_TICK;
@@ -326,12 +125,6 @@ DWORD appThreadId = 0;
 static DWORD WINAPI AppThread(void* args) {
 	main();
 	return 0;
-}
-
-static int gs_bluetoothConnected = FALSE;
-int PineGetBluetoothConnected()
-{
-	return gs_bluetoothConnected;
 }
 
 void PineFireEvent(PINE_EVENT_T e)
@@ -370,24 +163,24 @@ BOOL CALLBACK BatteryDialogProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARA
 	switch (message)
 	{
 	case WM_INITDIALOG:
-		SetDialogItemToInt(hwndDlg, IDC_CHARGE, gs_pbs.charge);
-		CheckDlgButton(hwndDlg, IDC_CHARGING, gs_pbs.charging);
-		CheckDlgButton(hwndDlg, IDC_PLUGGED, gs_pbs.plugged);
+		SetDialogItemToInt(hwndDlg, IDC_CHARGE, PineBatteryState.charge);
+		CheckDlgButton(hwndDlg, IDC_CHARGING, PineBatteryState.charging);
+		CheckDlgButton(hwndDlg, IDC_PLUGGED, PineBatteryState.plugged);
 		break;
 	case WM_COMMAND:
 		switch (LOWORD(wParam))
 		{
 		case IDC_CHARGE:
-			gs_pbs.charge = GetDialogItemAsInt(hwndDlg, IDC_CHARGE);
+            PineBatteryState.charge = GetDialogItemAsInt(hwndDlg, IDC_CHARGE);
 			break;
 		case IDC_CHARGING:
-			gs_pbs.charging = !gs_pbs.charging;
-			CheckDlgButton(hwndDlg, IDC_CHARGING, gs_pbs.charging);
+            PineBatteryState.charging = !PineBatteryState.charging;
+			CheckDlgButton(hwndDlg, IDC_CHARGING, PineBatteryState.charging);
 			PineFireEvent(PINE_EVENT_BATTERY);
 			break;
 		case IDC_PLUGGED:
-			gs_pbs.plugged = !gs_pbs.plugged;
-			CheckDlgButton(hwndDlg, IDC_PLUGGED, gs_pbs.plugged);
+            PineBatteryState.plugged = !PineBatteryState.plugged;
+			CheckDlgButton(hwndDlg, IDC_PLUGGED, PineBatteryState.plugged);
 			PineFireEvent(PINE_EVENT_BATTERY);
 			break;
 		case IDCANCEL:
@@ -447,7 +240,6 @@ BOOL CALLBACK DialogProc(HWND hwnd,
 			PostQuitMessage(0);
 			break;
 		case IDM_BLUETOOTH:
-			gs_bluetoothConnected = !gs_bluetoothConnected;
 			PineFireEvent(PINE_EVENT_BLUETOOTH);
 			break;
 		case IDM_BATTERY:
@@ -528,7 +320,7 @@ void PineFreeBitmap(void* b)
 	delete bmp;
 }
 
-PPoint PineGetBitmapSize(void* b)
+POINT PineGetBitmapSize(void* b)
 {
 	Gdiplus::Bitmap* bitmap = (Gdiplus::Bitmap*)b;
 
@@ -536,7 +328,7 @@ PPoint PineGetBitmapSize(void* b)
 	Gdiplus::Unit u = Gdiplus::Unit::UnitPixel;
 	bitmap->GetBounds(&rect, &u);
 
-	PPoint p = { rect.Width, rect.Height };
+    POINT p = { (LONG)rect.Width, (LONG)rect.Height };
 
 	return p;
 }

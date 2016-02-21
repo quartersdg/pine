@@ -1,5 +1,5 @@
 #include <math.h>
-#include <pebble.h>>
+#include <pebble.h>
 #include "PINE.h"
 #include "PINEGUI.h"
 
@@ -16,15 +16,18 @@ void gpath_destroy(GPath* gpath) {
 	free(gpath);
 }
 
-static PPoint rotate_point(float angle, GPoint p)
+static POINT rotate_point(float angle, GPoint center, GPoint p)
 {
-	PPoint r;
+    POINT r;
 	float s = sin(angle);
 	float c = cos(angle);
 
+    r.x = p.x;
+    r.y = p.y;
+
 	// rotate point
-	float xnew = p.x * c - p.y * s;
-	float ynew = p.x * s + p.y * c;
+	float xnew = r.x * c - r.y * s;
+	float ynew = r.x * s + r.y * c;
 
 	// translate point back:
 	r.x = xnew;
@@ -32,29 +35,34 @@ static PPoint rotate_point(float angle, GPoint p)
 	return r;
 }
 
-static PPoint* rotate_and_offset_gpath(GPath* path) {
-	PPoint* points = (PPoint*)malloc(path->num_points * sizeof(PPoint));
+static POINT* rotate_and_offset_gpath(GPath* path) {
+    POINT* points = (POINT*)malloc(path->num_points * sizeof(POINT));
 
 	double a = pebble_angle_to_radians(path->rotation);
 
 	for (int i = 0; i < path->num_points; i++) {
-		points[i] = rotate_point(a, path->points[i]);
-		points[i].x += path->offset.x;
-		points[i].y += path->offset.y;
-	}
+		points[i] = rotate_point(a, path->offset, path->points[i]);
+        points[i].x += path->offset.x;
+        points[i].y += path->offset.y;
+    }
 	return points;
 }
 
 void gpath_draw_filled(GContext* ctx, GPath *path) {
-	PPoint* points = rotate_and_offset_gpath(path);
+    POINT* points = rotate_and_offset_gpath(path);
 
-	PineDrawPolyFilled(path->num_points, points);
+    PineDrawPolyFilled(ctx,path->num_points, points);
+    /*
+    for (int i = 0;i < path->num_points;i++) {
+        PineDrawCircleFilled(ctx, points[i].x, points[i].y, 20);
+    }
+    */
 
 	free(points);
 }
 
 void gpath_draw_outline(GContext* ctx, GPath *path) {
-	PPoint* points = rotate_and_offset_gpath(path);
+    GPoint* points = rotate_and_offset_gpath(path);
 
 	PineDrawPolyLine(path->num_points, points);
 

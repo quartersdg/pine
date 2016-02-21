@@ -1,3 +1,4 @@
+
 #include <stdint.h>
 #include "queue.h"
 #include "pebble.h"
@@ -77,7 +78,7 @@ GRect layer_get_bounds(const Layer *layer) {
 	return layer->base.bounds;
 }
 
-GRect layer_get_relative_frame(const Layer *layer, const GRect r) {
+GRect layer_get_relative_frame(Layer *layer, const GRect r) {
 	GRect f;
 	f.origin.x = r.origin.x - layer->base.bounds.origin.x;
 	f.origin.y = r.origin.y - layer->base.bounds.origin.y;

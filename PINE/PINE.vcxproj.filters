@@ -51,11 +51,11 @@
       <Filter>Source Files</Filter>
     </ClCompile>
 
-    <ClCompile Include="../big_time/src/big_time.c">
+    <ClCompile Include="../rumbletime/src/rumbletime.c">
       <Filter>app</Filter>
     </ClCompile>
 
-    <ResourceCompile Include="../big_time/build/src/big_time.rc">
+    <ResourceCompile Include="../rumbletime/build/src/rumbletime.rc">
       <Filter>app</Filter>
     </ResourceCompile>
     <ClCompile Include="pine_misc.c">
