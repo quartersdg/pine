@@ -21,11 +21,11 @@ struct GContext {
 
 int PebbleColorToBrush(GColor c)
 {
-    switch (c) {
-    case GColorBlack:
+    switch (c.argb) {
+    case GColorBlackARGB8:
         return BLACK_BRUSH;
         break;
-    case GColorWhite:
+    case GColorWhiteARGB8:
         return WHITE_BRUSH;
         break;
     }
@@ -34,11 +34,11 @@ int PebbleColorToBrush(GColor c)
 
 int PebbleColorToPen(GColor c)
 {
-    switch (c) {
-    case GColorBlack:
+    switch (c.argb) {
+    case GColorBlackARGB8:
         return BLACK_PEN;
         break;
-    case GColorWhite:
+    case GColorWhiteARGB8:
         return WHITE_PEN;
         break;
     }
@@ -47,11 +47,11 @@ int PebbleColorToPen(GColor c)
 
 COLORREF PebbleColorToColorRef(GColor c)
 {
-    switch (c) {
-    case GColorBlack:
+    switch (c.argb) {
+    case GColorBlackARGB8:
         return RGB(0, 0, 0);
         break;
-    case GColorWhite:
+    case GColorWhiteARGB8:
         return RGB(255, 255, 255);
         break;
     }
@@ -103,11 +103,15 @@ void PinePaint()
 
     SelectObject(chdc, bitmap);
     BitBlt(hdc, 0, 0, PEBBLE_BASE_WIDTH, PEBBLE_BASE_HEIGHT, chdc, 0, watch_base * PEBBLE_BASE_HEIGHT, SRCCOPY);
+    DeleteObject(bitmap);
 
     RECT r = { PEBBLE_BASE_FACE_X, PEBBLE_BASE_FACE_Y, PEBBLE_BASE_FACE_X + PEBBLE_FACE_WIDTH, PEBBLE_BASE_FACE_Y + PEBBLE_FACE_HEIGHT };
     //FillRect(hdc, &r, (HBRUSH)(0));
 
     BitBlt(hdc, PEBBLE_BASE_FACE_X, PEBBLE_BASE_FACE_Y, PEBBLE_FACE_WIDTH, PEBBLE_FACE_HEIGHT, faceHDC, 0, 0, SRCCOPY);
+    DeleteObject(faceBitmap);
+    DeleteObject(faceHDC);
+    DeleteObject(chdc);
 
     EndPaint(pineHwnd, &ps);
 }
@@ -149,14 +153,14 @@ void PineDrawLine(int x1, int y1, int x2, int y2)
     LineTo(faceHDC, x2, y2);
 }
 
-void PineDrawPolyFilled(GContext* ctx, int num_points, GPoint* points)
+void PineDrawPolyFilled(GContext* ctx, int num_points, PPOINT* points)
 {
-    Polygon(faceHDC, (PPOINT)points, num_points);
+    Polygon(faceHDC, points, num_points);
 }
 
-void PineDrawPolyLine(int num_points, GPoint* points)
+void PineDrawPolyLine(int num_points, PPOINT* points)
 {
-    Polyline(faceHDC, (PPOINT)points, num_points);
+    Polyline(faceHDC, points, num_points);
 }
 
 void PineDrawRectFilled(GColor c, int x, int y, int w, int h)
@@ -221,7 +225,7 @@ void PineDrawText(int x, int y, int w, int h, GColor bcolor, GColor tcolor, void
     int oldmode;
     SetRect(&r, x, y, x + w, y + h);
     SetTextColor(faceHDC, PebbleColorToColorRef(tcolor));
-    if (bcolor == GColorClear) {
+    if (bcolor.argb == GColorClearARGB8) {
         oldmode = SetBkMode(faceHDC, TRANSPARENT);
     }
     else {
@@ -229,7 +233,7 @@ void PineDrawText(int x, int y, int w, int h, GColor bcolor, GColor tcolor, void
     }
     SelectObject(faceHDC, (HFONT)font);
     DrawText(faceHDC, text, -1, &r, DT_BOTTOM);
-    if (bcolor == GColorClear) {
+    if (bcolor.argb == GColorClearARGB8) {
         SetBkMode(faceHDC, oldmode);
     }
 }
@@ -706,7 +710,7 @@ void app_event_loop(void) {
 
 	for (;;) {
 		time_to_wait = find_lowest_app_timer();
-		if (30 < time_to_wait) time_to_wait = 30;
+		if (100 < time_to_wait) time_to_wait = 100;
 		e = PineWaitForEvent(&time_to_wait);
 
         time(&current_time);

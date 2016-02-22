@@ -16,22 +16,22 @@ void gpath_destroy(GPath* gpath) {
 	free(gpath);
 }
 
-static POINT rotate_point(float angle, GPoint center, GPoint p)
+static POINT rotate_point(double angle, GPoint center, GPoint p)
 {
     POINT r;
-	float s = sin(angle);
-	float c = cos(angle);
+	double s = sin(angle);
+    double c = cos(angle);
 
     r.x = p.x;
     r.y = p.y;
 
 	// rotate point
-	float xnew = r.x * c - r.y * s;
-	float ynew = r.x * s + r.y * c;
+    double xnew = r.x * c - r.y * s;
+    double ynew = r.x * s + r.y * c;
 
 	// translate point back:
-	r.x = xnew;
-	r.y = ynew;
+	r.x = (LONG)xnew;
+	r.y = (LONG)ynew;
 	return r;
 }
 
@@ -40,7 +40,7 @@ static POINT* rotate_and_offset_gpath(GPath* path) {
 
 	double a = pebble_angle_to_radians(path->rotation);
 
-	for (int i = 0; i < path->num_points; i++) {
+	for (uint32_t i = 0; i < path->num_points; i++) {
 		points[i] = rotate_point(a, path->offset, path->points[i]);
         points[i].x += path->offset.x;
         points[i].y += path->offset.y;

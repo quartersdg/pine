@@ -21,6 +21,22 @@ struct BaseLayer {
 	bool hidden;
 	bool dirty;
 };
+
+typedef struct GBitmap {
+    void *addr;
+    uint16_t row_size_bytes;
+    union {
+        uint16_t info_flags;
+        
+        struct {
+            bool is_heap_allocated : 1;
+            uint16_t reserved : 11;
+            uint8_t version : 4;
+        };
+    };
+    GRect bounds;
+} GBitmap;
+
 void pine_update_layers(struct BaseLayer* l);
 
 void pine_something_is_dirty(void);

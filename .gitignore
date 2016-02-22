@@ -1,6 +1,10 @@
 ipch/*
 Debug/*
+Aplite/*
+Basalt/*
 PINE/Debug/*
+PINE/Aplite/*
+PINE/Basalt/*
 *.sdf
 *.suo
 *~

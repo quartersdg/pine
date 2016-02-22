@@ -50,14 +50,6 @@
     <ClCompile Include="Pine.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-
-    <ClCompile Include="../rumbletime/src/rumbletime.c">
-      <Filter>app</Filter>
-    </ClCompile>
-
-    <ResourceCompile Include="../rumbletime/build/src/rumbletime.rc">
-      <Filter>app</Filter>
-    </ResourceCompile>
     <ClCompile Include="pine_misc.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -67,6 +59,33 @@
     <ClCompile Include="pine_layer.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="pine_vibes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+
+    <ClCompile Include="../concentricity-master/src/concentricity.c">
+      <Filter>app</Filter>
+    </ClCompile>
+
+    <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
+      <Filter>app</Filter>
+    </ResourceCompile>
+
+    <ClCompile Include="../concentricity-master/src/rect.c">
+      <Filter>app</Filter>
+    </ClCompile>
+
+    <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
+      <Filter>app</Filter>
+    </ResourceCompile>
+
+    <ClCompile Include="../concentricity-master/src/round.c">
+      <Filter>app</Filter>
+    </ClCompile>
+
+    <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
+      <Filter>app</Filter>
+    </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PINE.rc">

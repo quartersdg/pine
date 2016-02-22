@@ -1,5 +1,5 @@
 #pragma once
-
+#define __attribute__(A)
 #include "pebble_fonts.h"
 #include "src/resource_ids.auto.h"
 
@@ -26,13 +26,19 @@
 #define __FILE_NAME__ __FILE__
 #endif
 
+//! Calculate the length of an array, based on the size of the element type.
+//! @param array The array to be evaluated.
+//! @return The length of the array.
 #define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 
-typedef struct ListNode {
-  struct ListNode* next;
-  struct ListNode* prev;
-} ListNode;
+#if !defined(_WIN32)
+struct tm;
+typedef struct tm tm;
+#endif
 
+//! Determine whether a variable is signed or not.
+//! @param var The variable to evaluate.
+//! @return true if the variable is signed.
 #define IS_SIGNED(var) (__builtin_choose_expr( \
   __builtin_types_compatible_p(__typeof__(var), unsigned char), false, \
   __builtin_choose_expr( \
@@ -193,7 +199,11 @@ const char *i18n_get_system_locale(void);
 typedef enum {
   WATCH_INFO_MODEL_UNKNOWN, //!< Unknown model
   WATCH_INFO_MODEL_PEBBLE_ORIGINAL, //!< Original Pebble
-  WATCH_INFO_MODEL_PEBBLE_STEEL //!< Pebble Steel
+  WATCH_INFO_MODEL_PEBBLE_STEEL, //!< Pebble Steel
+  WATCH_INFO_MODEL_PEBBLE_TIME, //!< Pebble Time
+  WATCH_INFO_MODEL_PEBBLE_TIME_STEEL, //!< Pebble Time Steel
+  WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_14, //!< Pebble Time Round, 14mm lug size
+  WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_20, //!< Pebble Time Round, 20mm lug size
 } WatchInfoModel;
 
 //! The different watch colors.
@@ -203,12 +213,23 @@ typedef enum {
   WATCH_INFO_COLOR_WHITE = 2, //!< White
   WATCH_INFO_COLOR_RED = 3, //!< Red
   WATCH_INFO_COLOR_ORANGE = 4, //!< Orange
-  WATCH_INFO_COLOR_GREY = 5, //!< Grey
+  WATCH_INFO_COLOR_GRAY = 5, //!< Gray
   WATCH_INFO_COLOR_STAINLESS_STEEL = 6, //!< Stainless Steel
   WATCH_INFO_COLOR_MATTE_BLACK = 7, //!< Matte Black
   WATCH_INFO_COLOR_BLUE = 8, //!< Blue
   WATCH_INFO_COLOR_GREEN = 9, //!< Green
-  WATCH_INFO_COLOR_PINK = 10 //!< Pink
+  WATCH_INFO_COLOR_PINK = 10, //!< Pink
+  WATCH_INFO_COLOR_TIME_WHITE = 11, //!< Time White
+  WATCH_INFO_COLOR_TIME_BLACK = 12, //!< Time Black
+  WATCH_INFO_COLOR_TIME_RED = 13, //!< Time Red
+  WATCH_INFO_COLOR_TIME_STEEL_SILVER = 14, //!< Time Steel Silver
+  WATCH_INFO_COLOR_TIME_STEEL_BLACK = 15, //!< Time Steel Black
+  WATCH_INFO_COLOR_TIME_STEEL_GOLD = 16, //!< Time Steel Gold
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_14 = 17, //!< Time Round 14mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_14 = 18, //!< Time Round 14mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_20 = 19, //!< Time Round 20mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_20 = 20, //!< Time Round 20mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_ROSE_GOLD_14 = 21, //!< Time Round 14mm lug size, Rose Gold
 } WatchInfoColor;
 
 //! Data structure containing the version of the firmware running on the watch.
@@ -246,13 +267,23 @@ WatchInfoColor watch_info_get_color(void);
 //! @see \ref cos_lookup
 #define TRIG_MAX_ANGLE 0x10000
 
+//! Converts from a fixed point value representation to the equivalent value in degrees
+//! @see DEG_TO_TRIGANGLE
+//! @see TRIG_MAX_ANGLE
+#define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
+
+//! Converts from an angle in degrees to the equivalent fixed point value representation
+//! @see TRIGANGLE_TO_DEG
+//! @see TRIG_MAX_ANGLE
+#define DEG_TO_TRIGANGLE(angle) (((angle) * TRIG_MAX_ANGLE) / 360)
+
 //! Look-up the sine of the given angle from a pre-computed table.
 //! @param angle The angle for which to compute the cosine.
 //! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
 int32_t sin_lookup(int32_t angle);
 
 //! Look-up the cosine of the given angle from a pre-computed table.
-//! This is equivalent to calling `sin_lookup(angle + MAX_ANGLE / 4)`.
+//! This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
 //! @param angle The angle for which to compute the cosine.
 //! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
 int32_t cos_lookup(int32_t angle);
@@ -284,7 +315,7 @@ typedef enum {
 
 //! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
 //! time).
-//! Example results: "7:30" or "15:00". 
+//! Example results: "7:30" or "15:00".
 //! @note AM/PM are also outputted with the time if the user's preference is 12h time.
 //! @param[out] buffer A pointer to the buffer to copy the time string into
 //! @param size The maximum size of buffer
@@ -307,68 +338,175 @@ bool clock_is_24h_style(void);
 time_t clock_to_timestamp(WeekDay day, int hour, int minute);
 
 //! Checks if timezone is currently set, otherwise gmtime == localtime.
-//! @note This function was added in preparation of timezone support, 
-//! currently always returns false
 //! @return `true` if timezone has been set, false otherwise
 bool clock_is_timezone_set(void);
+
+//! The maximum length for a timezone full name (e.g. America/Chicago)
+#define TIMEZONE_NAME_LENGTH 32
+
+//! If timezone is set, copies the current timezone long name (e.g. America/Chicago)
+//! to user-provided buffer.
+//! @param timezone A pointer to the buffer to copy the timezone long name into
+//! @param buffer_size Size of the allocated buffer to copy the timezone long name into
+//! @note timezone buffer should be at least TIMEZONE_NAME_LENGTH bytes
+void clock_get_timezone(char *timezone, const size_t buffer_size);
 
 //! @} // group WallTime
 
 //! @addtogroup EventService
 //! @{
 
-//! @addtogroup BluetoothConnectionService
-//! \brief Determine when Pebble is connected to the phone
+//! @addtogroup ConnectionService
+//! \brief Determine what the Pebble watch is connected to
 //!
-//! The BluetoothConnectionService allows your app to know whether Pebble is connected to the phone.
-//! You can ask the system for this information at a given time or you can register
-//! to receive events every time Pebble connects or disconnects to the phone.
+//! The ConnectionService allows your app to learn about the apps the Pebble
+//! watch is connected to. You can ask the system for this information at a
+//! given time or you can register to receive events every time connection or
+//! disconnection events occur.
+//!
+//! It allows you to determine whether the watch is connected to the Pebble
+//! mobile app by subscribing to the pebble_app_connection_handler or by calling
+//! the connection_service_peek_pebble_app_connection function.  Note that when
+//! the Pebble app is connected, you can assume PebbleKit JS apps will also be
+//! running correctly.
+//!
+//! The service also allows you to determine if the Pebble watch can establish
+//! a connection to a PebbleKit companion app by subscribing to the
+//! pebblekit_connection_handler or by calling the
+//! connection_service_peek_pebblekit_connection function.  Today, due to
+//! architectural differences between iOS and Android, this will return true
+//! for Android anytime a connection with the Pebble mobile app is established
+//! (since PebbleKit messages are routed through the Android app). For iOS,
+//! this will return true when any PebbleKit companion app has established a
+//! connection with the Pebble watch (since companion app messages are routed
+//! directly to the watch)
+//!
 //! @{
 
-//! Callback type for bluetooth connection events
-//! @param connected true on bluetooth connection, false on disconnection
-typedef void (*BluetoothConnectionHandler)(bool connected);
+typedef void (*ConnectionHandler)(bool connected);
 
-//! Query the bluetooth connection service for the current connection status
-//! @return true if connected, false otherwise
-bool bluetooth_connection_service_peek(void);
+typedef struct {
+  //! callback to be executed when the connection state between the watch and
+  //! the phone app has changed. Note, if the phone App is connected, PebbleKit JS apps
+  //! will also be working correctly
+  ConnectionHandler pebble_app_connection_handler;
+  //! ID for callback to be executed on PebbleKit connection event
+  ConnectionHandler pebblekit_connection_handler;
+} ConnectionHandlers;
 
-//! Subscribe to the bluetooth event service. Once subscribed, the handler gets called
-//! on every bluetooth connection event.
-//! @param handler A callback to be executed on connection event
-void bluetooth_connection_service_subscribe(BluetoothConnectionHandler handler);
+//! Query the bluetooth connection service for the current Pebble app connection status
+//! @return true if the Pebble app is connected, false otherwise
+bool connection_service_peek_pebble_app_connection(void);
+
+//! Query the bluetooth connection service for the current PebbleKit connection status
+//! @return true if a PebbleKit companion app is connected, false otherwise
+bool connection_service_peek_pebblekit_connection(void);
+
+//! Subscribe to the connection event service. Once subscribed, the appropriate
+//! handler gets called based on the type of connection event and user provided
+//! handlers
+//! @param ConnectionHandlers A struct populated with the handlers to
+//! be called when the specified connection event occurs. If a given handler is
+//! NULL, no function will be called.
+void connection_service_subscribe(ConnectionHandlers conn_handlers);
 
 //! Unsubscribe from the bluetooth event service. Once unsubscribed, the previously registered
 //! handler will no longer be called.
+void connection_service_unsubscribe(void);
+
+//! @deprecated Backwards compatibility typedef for ConnectionHandler. New code
+//! should use ConnectionHandler directly.  This will be removed in a future
+//! version of the Pebble SDK.
+typedef ConnectionHandler BluetoothConnectionHandler;
+
+//! @deprecated Backward compatibility function for
+//! connection_service_peek_pebble_app_connection.  New code should use
+//! connection_service_peek_pebble_app_connection directly. This will be
+//! removed in a future version of the Pebble SDK
+bool bluetooth_connection_service_peek(void);
+
+//! @deprecated Backward compatibility function for
+//! connection_service_subscribe.  New code should use
+//! connection_service_subscribe directly. This will be removed in a future
+//! version of the Pebble SDK
+void bluetooth_connection_service_subscribe(ConnectionHandler handler);
+
+//! @deprecated Backward compatibility function for
+//! connection_service_unsubscribe.  New code should use
+//! connection_service_unsubscribe directly. This will be removed in a future
+//! version of the Pebble SDK
 void bluetooth_connection_service_unsubscribe(void);
 
-//! @} // group BluetoothConnectionService
+//! @} // group ConnectionService
 
 //! @addtogroup AppFocusService
 //!
 //!
 //! \brief Handling app focus
-//!
-//! The AppFocusService is used for apps that require a high degree of user interactivity, like a game
-//! when you need to know when to pause your app when a notification covers your app window.
+//! The AppFocusService allows developers to be notified when their apps become visible on the
+//! screen. Common reasons your app may be running but  not be on screen are: it's still in the
+//! middle of launching and being revealed by a system animation, or it is being covered by a system
+//! window such as a notification. This service is useful for apps that require a high degree of
+//! user interactivity, like a game where you'll want to pause when a notification covers your app
+//! window. It can be also used for apps that want to sync up an intro animation to the end of the
+//! system animation that occurs before your app is visible.
 //!
 //! @{
 
 //! Callback type for focus events
-//! @param in_focus True if the app is in focus, false otherwise.
+//! @param in_focus True if the app is gaining focus, false otherwise.
 typedef void (*AppFocusHandler)(bool in_focus);
+
+//! There are two different focus events which take place when transitioning to and from an app
+//! being in focus. Below is an example of when these events will occur:
+//! 1) The app is launched. Once the system animation to the app has completed and the app is
+//! completely in focus, the did_focus handler is called with in_focus set to true.
+//! 2) A notification comes in and the animation to show the notification starts. The will_focus
+//! handler is called with in_focus set to false.
+//! 3) The animation completes and the notification is in focus, with the app being completely
+//! covered. The did_focus hander is called with in_focus set to false.
+//! 4) The notification is dismissed and the animation to return to the app starts. The will_focus
+//! handler is called with in_focus set to true.
+//! 5) The animation completes and the app is in focus. The did_focus handler is called with
+//! in_focus set to true.
+typedef struct {
+  //! Handler which will be called right before an app will lose or gain focus.
+  //! @note This will be called with in_focus set to true when a window which is covering the app is
+  //! about to close and return focus to the app.
+  //! @note This will be called with in_focus set to false when a window which will cover the app is
+  //! about to open, causing the app to lose focus.
+  AppFocusHandler will_focus;
+  //! Handler which will be called when an animation finished which has put the app into focus or
+  //! taken the app out of focus.
+  //! @note This will be called with in_focus set to true when a window which was covering the app
+  //! has closed and the app has gained focus.
+  //! @note This will be called with in_focus set to false when a window has opened which is now
+  //! covering the app, causing the app to lose focus.
+  AppFocusHandler did_focus;
+} AppFocusHandlers;
+
+//! Subscribe to the focus event service. Once subscribed, the handlers get called every time the
+//! app gains or loses focus.
+//! @param handler Handlers which will be called on will-focus and did-focus events.
+//! @see AppFocusHandlers
+void app_focus_service_subscribe_handlers(AppFocusHandlers handlers);
 
 //! Subscribe to the focus event service. Once subscribed, the handler
 //! gets called every time the app focus changes.
-//! @note In focus events are triggered when the app is no longer covered by a
-//! modal window.
-//! @note Out focus events are triggered when the app becomes covered by a modal
-//! window.
-//! @param handler A callback to be executed on in-focus events.
+//! @note Calling this function is equivalent to
+//! \code{.c}
+//! app_focus_service_subscribe_handlers((AppFocusHandlers){
+//!   .will_focus = handler,
+//! });
+//! \endcode
+//! @note Out focus events are triggered when a modal window is about to open and cover the app.
+//! @note In focus events are triggered when a modal window which is covering the app is about to
+//! close.
+//! @param handler A callback to be called on will-focus events.
 void app_focus_service_subscribe(AppFocusHandler handler);
 
-//! Unscribe from the focus event service. Once unsubscribed, the previously
-//! registered handler will no longer be called.
+//! Unsubscribe from the focus event service. Once unsubscribed, the previously
+//! registered handlers will no longer be called.
 void app_focus_service_unsubscribe(void);
 
 //! @} // group AppFocusService
@@ -381,8 +519,9 @@ void app_focus_service_unsubscribe(void);
 //! its current charge level, whether it is plugged and charging. It uses the
 //! BatteryChargeState structure to describe the current power state of Pebble.
 //!
-//! Refer to /Examples/watchfaces/classio-battery-connection,
-//! which demonstrates using the battery state service in a watchface.
+//! Refer to the <a href="https://github.com/pebble-examples/classio-battery-connection">
+//! classio-battery-connection</a> example, which demonstrates using the battery state service
+//! in a watchface.
 //! @{
 
 //! Structure for retrieval of the battery charge state
@@ -422,11 +561,10 @@ BatteryChargeState battery_state_service_peek(void);
 //! perform measures at a given frequency, and transmit samples in batches to save CPU time
 //! and processing.
 //!
-//! For available code samples, see
-//! Examples/watchapps/feature_accel_discs
+//! For available code samples, see the
+//! <a href="https://github.com/pebble-examples/feature-accel-discs/">feature-accel-discs</a>
+//! example app.
 //! @{
-
-#define __attribute__(a)
 
 //! A single accelerometer sample for all three axes including timestamp and
 //! vibration rumble status.
@@ -455,6 +593,7 @@ typedef struct __attribute__((__packed__)) {
   int16_t z;
 } AccelRawData;
 
+//! Enumerated values defining the three accelerometer axes.
 typedef enum {
   //! Accelerometer's X axis. The positive direction along the X axis goes
   //! toward the right of the watch.
@@ -541,73 +680,24 @@ void accel_raw_data_service_subscribe(uint32_t samples_per_update, AccelRawDataH
 
 //! @addtogroup CompassService
 //!
-//! \brief The Compass Service combines information from Pebble's accelerometer and magnetometer to automatically calibrate
-//! the compass and transform the raw magnetic field information into a \ref CompassHeading, that is an angle to north.
+//!     \brief The Compass Service combines information from Pebble's accelerometer and
+//!     magnetometer to automatically calibrate
+//!     the compass and transform the raw magnetic field information into a \ref CompassHeading,
+//!     that is an angle to north. It also
+//!     provides magnetic north and information about its status and accuracy through the \ref
+//!     CompassHeadingData structure. The API is designed to also provide true north in a future
+//!     release.
 //!
-//! The Compass Service provides magnetic north and information about its status and accuracy through the \ref
-//! CompassHeadingData structure. The API is designed to also provide true north in a future release.
+//!     To learn more about the Compass Service and how to use it, read the
+//!     <a href="https://developer.getpebble.com/guides/pebble-apps/sensors/magnetometer/">
+//!     Determining Direction</a> guide.
 //!
-//! #### Calibration
-//! The Compass Service requires an initial calibration before it can return accurate results. Calibration is
-//! performed automatically by the system when required.
-//! The `compass_status` field indicates whether the Compass Service is calibrating.
-//! To help the calibration process, your application should
-//! show a message to the user asking them to move their wrists in different directions.
+//!     For available code samples, see the
+//!     <a href="https://github.com/pebble-examples/feature-compass">feature-compass</a> example.
 //!
-//! Refer to the compass examples for suggestions on how to implement this screen.
-//!
-//! #### Magnetic North and True North
-//!
-//! Depending on your location on earth, the measured heading towards magnetic north and
-//! true north can significantly differ. This is called magnetic variation or declination.
-//!
-//! Pebble does not currently automatically correct the magnetic heading to return a true heading, but the API is designed so that
-//! this feature can be added in the future and your applications will be able to automatically take advantage of it:
-//!
-//!  * If you need a precise heading in your application, we recommend that you use the `magnetic_heading` field and
-//! use a webservice to retrieve the declination at your current location.
-//!
-//!  * If you choose to not correct the heading yourself, we recommend that you use the `true_heading` field. This field will contain
-//! the magnetic heading if declination is not available, or the true heading if declination is available. The field
-//! `is_declination_valid` will be true when declination is available. You can use this information to tell the user whether
-//! you are showing magnetic north or true north.
-//!
-//! #### Battery Considerations
-//! Using the compass will turn on both Pebble's magnetometer and accelerometer. Those two devices will have a slight
-//! impact on battery life. A much more significant battery impact will be caused by redrawing the screen too often or
-//! performing CPU-intensive work every time the compass heading is updated.
-//!
-//! We recommend that you follow the following best practices to optimize for battery life:
-//!
-//! * If your application is already rapidly redrawing the display, use \ref compass_service_peek() to get the most recent
-//! available heading when drawing each frame.
-//! * If your UI updates only when the heading changes, use \ref compass_service_subscribe() and set an appropriate filter to reduce
-//! the number of events.
-//! * If you use \ref compass_service_subscribe() and then do not require the compass heading anymore, remember to call
-//! \ref compass_service_unsubscribe() to stop the Compass Service.
-//! * Finally, note that every time you use \ref compass_service_peek(), the Compass Service will turn on and stay
-//! active for a few seconds.
-//!
-//! #### Defining "up" on Pebble
-//! Compass readings are always relative to the current orientation of Pebble. Using the accelerometer, the
-//! Compass Service figures out what is the direction that the user is pointing at.
-//!
-//! If Pebble is held flat, the compass heading will be the angle between a vector to north and a vector going
-//! from the bottom to the top of Pebble in a plane parallel to the screen (the Y axis vector of the accelerometer).
-//! If the user lifts their arm so that Pebble is held vertical in front of them, compass heading will be relative to a vector
-//! going through Pebble (opposite to the Z axis vector of the accelerometer). If the user keeps bringing their arm up,
-//! effectively holding the Pebble upside down, the compass heading will be relative to a line from the top to the
-//! bottom of Pebble, in the plane of the screen (opposite to the Y axis vector of the accelerometer).
-//!
-//! #### Code Samples
-//! For available code samples, see `Examples/watchapps/feature_compass`.
 //! @{
 
-//! Converts from a fixed point value representation of trig_angle to the equivalent value in degrees
-#define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
-
-
-typedef struct __attribute__((__packed__)) {
+typedef struct PACKED {
  //! magnetic field along the x axis
  int16_t x;
  //! magnetic field along the y axis
@@ -722,21 +812,252 @@ void tick_timer_service_unsubscribe(void);
 
 //! @} // group TickTimerService
 
+//! @addtogroup HealthService
+//!
+//! \brief Get access to health information like step count, sleep totals, etc.
+//!
+//! The HealthService provides your app access to the step count and sleep activity of the user.
+//!
+//! @{
+
+//! Health metric values used to retrieve health data.
+//! For example, using \ref health_service_sum().
+typedef enum {
+  //! The number of steps counted.
+  HealthMetricStepCount,
+  //! The number of seconds spent active (i.e. not resting).
+  HealthMetricActiveSeconds,
+  //! The distance walked, in meters.
+  HealthMetricWalkedDistanceMeters,
+  //! The number of seconds spent sleeping.
+  HealthMetricSleepSeconds,
+  //! The number of sleep seconds in the 'restful' or deep sleep state.
+  HealthMetricSleepRestfulSeconds,
+} HealthMetric;
+
+//! Type used to represent HealthMetric values
+typedef int32_t HealthValue;
+
+//! Return the sum of a \ref HealthMetric's values over a time range.
+//! The `time_start` and `time_end` parameters define the range of time you want the sum for.
+//! @note The value returned will be an average since midnight, weighted for the length of the
+//! specified time range. This may change in the future.
+//! @param metric The metric to query for data.
+//! @param time_start UTC time of the earliest data item to incorporate into the sum.
+//! @param time_end UTC time of the most recent data item to incorporate into the sum.
+//! @return The sum of that metric over the given time range, if available.
+HealthValue health_service_sum(HealthMetric metric, time_t time_start, time_t time_end);
+
+//! Convenience wrapper for \ref health_service_sum() that returns the sum for today.
+//! @param metric The metric to query for data.
+//! @return The sum of that metric's data for today, if available.
+HealthValue health_service_sum_today(HealthMetric metric);
+
+//! Expresses a set of \ref HealthActivity values as a bitmask.
+typedef uint32_t HealthActivityMask;
+
+//! A mask value representing all available activities
+#define HealthActivityMaskAll ((HealthActivityRestfulSleep << 1) - 1)
+
+//! Health-related activities that can be accessed
+//! using \ref health_service_peek_current_activities()
+//! and \ref health_service_activities_iterate().
+typedef enum {
+  //! No special activity.
+  HealthActivityNone = 0,
+  //! The 'sleeping' activity.
+  HealthActivitySleep = 1 << 0,
+  //! The 'restful sleeping' activity.
+  HealthActivityRestfulSleep = 1 << 1,
+} HealthActivity;
+
+//! Return a \ref HealthActivityMask containing a set of bits, one set for each
+//! activity that is currently active.
+//! @return A bitmask with zero or more \ref HealthActivityMask bits set as appropriate.
+HealthActivityMask health_service_peek_current_activities(void);
+
+//! Callback used by \ref health_service_activities_iterate().
+//! @param activity Which activity the caller is being informed about.
+//! @param time_start Start UTC time of the activity.
+//! @param time_end End UTC time of the activity.
+//! @param context The `context` parameter initially passed
+//!     to \ref health_service_activities_iterate().
+//! @return `true` if you are interested in more activities, or `false` to stop iterating.
+typedef bool (*HealthActivityIteratorCB)(HealthActivity activity,
+                                         time_t time_start, time_t time_end,
+                                         void *context);
+
+//! Iteration direction, passed to \ref health_service_activities_iterate().
+//! When iterating backwards (`HealthIterationDirectionPast`), activities that have a greater value
+//! for `time_end` come first.
+//! When iterating forward (`HealthIterationDirectionFuture`), activities that have a smaller value
+//! for `time_start` come first.
+typedef enum {
+  //! Iterate into the past.
+  HealthIterationDirectionPast,
+  //! Iterate into the future.
+  HealthIterationDirectionFuture,
+} HealthIterationDirection;
+
+//! Iterates backwards or forward within a given time span to list all recorded activities.
+//! For example, this can be used to find the last recorded sleep phase or all deep sleep phases in
+//! a given time range. Any activity that overlaps with `time_start` and `time_end` will be
+//! included, even if the start time starts before `time_start` or end time ends after `time_end`.
+//! @param activity_mask A bitmask containing set of activities you are interested in.
+//! @param time_start UTC time of the earliest time you are interested in.
+//! @param time_end UTC time of the latest time you are interested in.
+//! @param direction The direction in which to iterate.
+//! @param callback Developer-supplied callback that is called for each activity iterated over.
+//! @param context Developer-supplied context pointer that is passed to the callback.
+void health_service_activities_iterate(HealthActivityMask activity_mask,
+                                       time_t time_start, time_t time_end,
+                                       HealthIterationDirection direction,
+                                       HealthActivityIteratorCB callback, void *context);
+
+//! Possible values returned by \ref health_service_metric_accessible().
+//! The values are used in combination as a bitmask.
+//! For example, to check if any data is available for a given request use:
+//! bool any_data_available = value & HealthServiceAccessibilityMaskAvailable;
+typedef enum {
+  //! Return values are available and represent the collected health information.
+  HealthServiceAccessibilityMaskAvailable = 1 << 0,
+  //! The user hasn't granted permission.
+  HealthServiceAccessibilityMaskNoPermission = 1 << 1,
+  //! The queried combination of time span and \ref HealthMetric or \ref HealthActivityMask
+  //! is currently unsupported.
+  HealthServiceAccessibilityMaskNotSupported = 1 << 2,
+  //! No samples were recorded for the given time span.
+  HealthServiceAccessibilityMaskNotAvailable = 1 << 3,
+} HealthServiceAccessibilityMask;
+
+//! Check if a certain combination of metric and time span is accessible by returning a
+//! value of \ref HealthServiceAccessibilityMask. Developers should check if the return value is
+//! \ref HealthServiceAccessibilityMaskAvailable before calling any other HealthService APIs that
+//! involve the given metric.
+//! @param metric The metric to query for data.
+//! @param time_start Earliest UTC time you are interested in.
+//! @param time_end Latest UTC time you are interested in.
+//! @return A \ref HealthServiceAccessibilityMask representing the accessible metrics
+//! in this time range.
+HealthServiceAccessibilityMask health_service_metric_accessible(
+    HealthMetric metric, time_t start_time, time_t end_time);
+
+//! Check if a certain combination of metric, \ref HealthActivityMask and time span is
+//! accessible. Developers should check if the return value is
+//! \ref HealthServiceAccessibilityMaskAvailable before calling any other HealthService APIs that
+//! involve the given activities.
+//! @param activity_mask A bitmask of activities you are interested in.
+//! @param time_start Earliest UTC time you are interested in.
+//! @param time_end Latest UTC time you are interested in.
+//! @return A \ref HealthServiceAccessibilityMask representing which of the
+//! passed \ref HealthActivityMask values are available under the given constraints.
+HealthServiceAccessibilityMask health_service_any_activity_accessible(
+    HealthActivityMask activity_mask, time_t start_time, time_t end_time);
+
+//! Health event enum. Passed into the \ref HealthEventHandler.
+typedef enum {
+  //! All data is considered as outdated and apps should re-read all health data.
+  //! This happens after an app is subscribed via \ref health_service_events_subscribe(),
+  //! on a change of the day, or in other cases that significantly change the underlying data.
+  HealthEventSignificantUpdate = 0,
+  //! Recent values around \ref HealthMetricStepCount, \ref HealthMetricActiveSeconds,
+  //! or \ref HealthMetricWalkedDistanceMeters have changed.
+  HealthEventMovementUpdate = 1,
+  //! Recent values around \ref HealthMetricSleepSeconds, \ref HealthMetricSleepRestfulSeconds,
+  //! \ref HealthActivitySleep, and \ref HealthActivityRestfulSleep changed.
+  HealthEventSleepUpdate = 2,
+} HealthEventType;
+
+//! Developer-supplied event handler, called when a health-related event occurs after subscribing
+//! via \ref health_service_events_subscribe();
+//! @param event The type of health-related event that occured.
+//! @param context The developer-supplied context pointer.
+typedef void (*HealthEventHandler)(HealthEventType event, void *context);
+
+//! Subscribe to HealthService events. This allocates a cache on the application's heap of up
+//! to 2048 bytes that will be de-allocated if you call \ref health_service_events_unsubscribe().
+//! If there's not enough heap available, this function will return `false` and will not
+//! subscribe to any events.
+//! @param handler Developer-supplied event handler function.
+//! @param context Developer-supplied context pointer.
+//! @return `true` on success, `false` on failure.
+bool health_service_events_subscribe(HealthEventHandler handler, void *context);
+
+//! Unsubscribe from HealthService events.
+//! @return `true` on success, `false` on failure.
+bool health_service_events_unsubscribe(void);
+
+//! Light level enum
+typedef enum AmbientLightLevel {
+  AmbientLightLevelUnknown = 0,
+  AmbientLightLevelVeryDark,
+  AmbientLightLevelDark,
+  AmbientLightLevelLight,
+  AmbientLightLevelVeryLight,
+} AmbientLightLevel;
+
+//! Structure representing a single minute data record returned
+//! by \ref health_service_get_minute_history().
+//! The `orientation` field encodes the angle of the watch in the x-y plane (the "yaw") in the
+//! lower 4 bits (360 degrees linearly mapped to 1 of 16 different values) and the angle to the
+//! z axis (the "pitch") in the upper 4 bits.
+//! The `vmc` value is a measure of the total amount of movement seen by the watch. More vigorous
+//! movement yields higher VMC values.
+typedef struct {
+  uint8_t steps;              //!< Number of steps taken in this minute.
+  uint8_t orientation;        //!< Quantized average orientation.
+  uint16_t vmc;               //!< Vector Magnitude Counts (vmc).
+  bool is_invalid: 1;         //!< `true` if the item doesn't represents actual data
+                              //!< and should be ignored.
+  AmbientLightLevel light: 3; //!< Instantaneous light level during this minute.
+  uint8_t padding: 4;
+  uint8_t reserved[7];        //!< Reserved for future use.
+} HealthMinuteData;
+
+//! Return historical minute data records. This fills in the `minute_data` array parameter with
+//! minute by minute statistics of the user's steps, average watch orientation, etc. The data is
+//! returned in time order, with the oldest minute data returned at `minute_data[0]`.
+//! @param minute_data Pointer to an array of \ref HealthMinuteData records that will be filled
+//!      in with the historical minute data.
+//! @param max_records The maximum number of records the `minute_data` array can hold.
+//! @param[in,out] time_start On entry, the UTC time of the first requested record. On exit,
+//!      the UTC time of the first second of the first record actually returned.
+//!      If `time_start` on entry is somewhere in the middle of a minute interval, this function
+//!      behaves as if the caller passed in the start of that minute.
+//! @param[in,out] time_end On entry, the UTC time of the end of the requested range of records. On
+//!      exit, the UTC time of the end of the last record actually returned (i.e. start time of last
+//!      record + 60). If `time_end` on entry is somewhere in the middle of a minute interval, this
+//!      function behaves as if the caller passed in the end of that minute.
+//! @return Actual number of records returned. May be less then the maximum requested.
+//! @note If the return value is zero, `time_start` and `time_end` are meaningless.
+//!      It's not guaranteed that all records contain valid data, even if the return value is
+//!      greater than zero. Check `HealthMinuteData.is_invalid` to see if a given record contains
+//!      valid data.
+uint32_t health_service_get_minute_history(HealthMinuteData *minute_data, uint32_t max_records,
+                                           time_t *time_start, time_t *time_end);
+
+//! Convenience macro to switch between two expressions depending on health support.
+//! On platforms with health support the first expression will be chosen, the second otherwise.
+#define PBL_IF_HEALTH_ELSE(if_true, if_false) (if_false)
+
+//! @} // group HealthService
+
 //! @} // group EventService
 
 //! @addtogroup DataLogging
 //! \brief Enables logging data asynchronously to a mobile app
 //!
-//! In Pebble OS, data logging is a data storage and transfer subsystem that allows watchapps to save
-//! data on non-volatile storage devices when the phone is not available to process it. The API provides
-//! your watchapp with a mechanism for short-term data buffering for asynchronous data transmission to
-//! a mobile app.
+//! In Pebble OS, data logging is a data storage and transfer subsystem that allows watchapps to
+//! save data on non-volatile storage devices when the phone is not available to process it. The
+//! API provides your watchapp with a mechanism for short-term data buffering for asynchronous data
+//! transmission to a mobile app.
 //!
-//! Using this API, your Pebble watchapp can create an arbitrary number of logs, but you’re limited in
-//! the amount of storage space you can use. Note that approximately 640K is available for data
-//! logging, which is shared among all watchapps that use it. This value is subject to change in the 
-//! future. When the data spool is full, an app will start overwriting its own data. An app cannot 
-//! overwrite another apps's data. However, the other app might have 0 bytes for data logging.
+//! Using this API, your Pebble watchapp can create an arbitrary number of logs, but you’re
+//! limited in the amount of storage space you can use. Note that approximately 640K is available
+//! for data logging, which is shared among all watchapps that use it. This value is subject to
+//! change in the future. When the data spool is full, an app will start overwriting its own data.
+//! An app cannot overwrite another apps's data. However, the other app might have 0 bytes for data
+//! logging.
 //!
 //! Your app can log data to a session, either creating, adding or deleting data to that session.
 //! The data is then sent to the associated phone application at the earliest convenience.
@@ -746,14 +1067,15 @@ void tick_timer_service_unsubscribe(void);
 //!
 //! For example:
 //!
-//! To create a data logging session for 4-byte unsigned integers with a tag of 0x1234, you would do this:
-//! \code{.c}
+//! To create a data logging session for 4-byte unsigned integers with a tag of 0x1234, you would
+//! do this: \code{.c}
 //!
-//! DataLoggingSessionRef logging_session = data_logging_create(0x1234, DATA_LOGGING_UINT, 4, false);
+//! DataLoggingSessionRef logging_session = data_logging_create(0x1234, DATA_LOGGING_UINT, 4,
+//!                                                             false);
 //!
 //! // Fake creating some data and logging it to the session.
-//! uint32_t data[] = { 1, 2, 3, 4 };
-//! data_logging_log(logging_session, &data, 4);
+//! uint32_t data[] = { 1, 2, 3};
+//! data_logging_log(logging_session, &data, 3);
 //!
 //! // Fake creating more data and logging that as well.
 //! uint32_t data2[] = { 1, 2 };
@@ -763,17 +1085,16 @@ void tick_timer_service_unsubscribe(void);
 //! data_logging_finish(logging_session);
 //! \endcode
 //!
-//! For code samples, refer to Examples/data-logging-demo.
 //! @{
 
 typedef void *DataLoggingSessionRef;
 
-//! The different types of session data that Pebble supports. This type describes the type of a singular item in the data
-//! session. Every item in a given session is the same type and size.
+//! The different types of session data that Pebble supports. This type describes the type of a
+//! singular item in the data session. Every item in a given session is the same type and size.
 typedef enum {
-  //! Array of bytes. Remember that this is the type of a single item in the logging session, so using this
-  //! type means you'll be logging multiple byte arrays (each a fixed length described by item_length) for the
-  //! duration of the session.
+  //! Array of bytes. Remember that this is the type of a single item in the logging session, so
+  //! using this type means you'll be logging multiple byte arrays (each a fixed length described
+  //! by item_length) for the duration of the session.
   DATA_LOGGING_BYTE_ARRAY = 0,
   //! Unsigned integer. This may be a 1, 2, or 4 byte integer depending on the item_length parameter
   DATA_LOGGING_UINT = 2,
@@ -781,13 +1102,15 @@ typedef enum {
   DATA_LOGGING_INT = 3,
 } DataLoggingItemType;
 
+//! Enumerated values describing the possible outcomes of data logging operations
 typedef enum {
   DATA_LOGGING_SUCCESS = 0, //!< Successful operation
   DATA_LOGGING_BUSY, //!< Someone else is writing to this logging session
   DATA_LOGGING_FULL, //!< No more space to save data
   DATA_LOGGING_NOT_FOUND, //!< The logging session does not exist
   DATA_LOGGING_CLOSED, //!< The logging session was made inactive
-  DATA_LOGGING_INVALID_PARAMS //!< An invalid parameter was passed to one of the functions
+  DATA_LOGGING_INVALID_PARAMS, //!< An invalid parameter was passed to one of the functions
+  DATA_LOGGING_INTERNAL_ERR //!< An internal error occurred
 } DataLoggingResult;
 
 //! Create a new data logging session.
@@ -796,32 +1119,44 @@ typedef enum {
 //! @param item_type The type of data stored in this logging session
 //! @param item_length The size of a single data item in bytes
 //! @param resume True if we want to look for a logging session of the same tag and
-//!   resume logging to it. If this is false and a session with the specified tag exists, that session will
-//!   be closed and a new session will be opened.
+//!   resume logging to it. If this is false and a session with the specified tag exists, that
+//!   session will be closed and a new session will be opened.
 //! @return An opaque reference to the data logging session
-DataLoggingSessionRef
-data_logging_create(uint32_t tag, DataLoggingItemType item_type, uint16_t item_length, bool resume);
+DataLoggingSessionRef data_logging_create(uint32_t tag, DataLoggingItemType item_type,
+                                          uint16_t item_length, bool resume);
 
-//! Delete a data logging_session. Logging data is kept until it has successfully been transferred over to the
-//! phone, but no data may be added to the session after this function is called.
+//! Finish up a data logging_session. Logging data is kept until it has successfully been
+//! transferred over to the phone, but no data may be added to the session after this function is
+//! called.
 //!
-//! @param logging_session a reference to the data logging session previously allocated using data_logging_create
+//! @param logging_session a reference to the data logging session previously allocated using
+//!   data_logging_create
 void data_logging_finish(DataLoggingSessionRef logging_session);
 
 //! Add data to the data logging session. If a phone is available, the data is sent directly
-//! to the phone. Otherwise, it is saved to the watch storage until the watch is connected to a phone.
+//! to the phone. Otherwise, it is saved to the watch storage until the watch is connected to a
+//! phone.
 //!
 //! @param logging_session a reference to the data logging session you want to add the data to
 //! @param data a pointer to the data buffer that contains multiple items
-//! @param num_items the number of items to log. This means data must be at least (num_items * item_length)
-//!                  long in bytes
-//! @return DATA_LOGGING_SUCCESS on success
-//!         DATA_LOGGING_NOT_FOUND if the logging session is invalid
-//!         DATA_LOGGING_CLOSED if the sesion is not active
-//!         DATA_LOGGING_BUSY if the sesion is not available for writing
-//!         DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL
-DataLoggingResult
-data_logging_log(DataLoggingSessionRef logging_session, const void *data, uint32_t num_items);
+//! @param num_items the number of items to log. This means data must be at least
+//!    (num_items * item_length) long in bytes
+//! @return
+//! DATA_LOGGING_SUCCESS on success
+//!
+//! @return
+//! DATA_LOGGING_NOT_FOUND if the logging session is invalid
+//!
+//! @return
+//! DATA_LOGGING_CLOSED if the sesion is not active
+//!
+//! @return
+//! DATA_LOGGING_BUSY if the sesion is not available for writing
+//!
+//! @return
+//! DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL
+DataLoggingResult data_logging_log(DataLoggingSessionRef logging_session, const void *data,
+                                   uint32_t num_items);
 
 //! @} // group DataLogging
 
@@ -852,6 +1187,8 @@ typedef struct __attribute__((__packed__)) {
 
 #define UUID_SIZE 16
 
+//! Make a Uuid object from sixteen bytes.
+//! @return A Uuid structure representing the bytes p0 to p15.
 #define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) ((Uuid) {p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
 
 //! Creates a Uuid from an array of bytes with 16 bytes in Big Endian order.
@@ -873,8 +1210,8 @@ typedef struct __attribute__((__packed__)) {
 bool uuid_equal(const Uuid *uu1, const Uuid *uu2);
 
 //! Writes UUID in a string form into buffer that looks like the following...
-//! {12345678-1234-5678-1234-567812345678}
-//! @param uuid The Uuid to write
+//! {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
+//! @param uuid The Uuid to write into the buffer as human-readable string
 //! @param buffer Memory to write the string to. Must be at least \ref UUID_STRING_BUFFER_LENGTH bytes long.
 void uuid_to_string(const Uuid *uuid, char *buffer);
 
@@ -912,8 +1249,13 @@ void app_log(uint8_t log_level, const char* src_filename, int src_line_number, c
 //! @param level The log level to log output as
 //! @param fmt A C formatting string
 //! @param args The arguments for the formatting string
+#if defined(_WIN32)
 #define APP_LOG(level, fmt, ...)                                \
-  app_log(level, __FILE_NAME__, __LINE__, fmt, ## __VA_ARGS__)
+  app_log(level, __FILE_NAME__, __LINE__, fmt, __VA_ARGS__)
+#else
+#define APP_LOG(level, fmt, args...)                                \
+  app_log(level, __FILE_NAME__, __LINE__, fmt, ## args)
+#endif
 
 //! Suggested log level values
 typedef enum {
@@ -1369,6 +1711,107 @@ Tuple *dict_find(const DictionaryIterator *iter, const uint32_t key);
 
 //! @} // group Dictionary
 
+//! @addtogroup Dictation
+//! @{
+
+typedef struct DictationSession DictationSession;
+
+typedef enum {
+  //! Transcription successful, with a valid result
+  DictationSessionStatusSuccess,
+
+  //! User rejected transcription and exited UI
+  DictationSessionStatusFailureTranscriptionRejected,
+
+  //! User exited UI after transcription error
+  DictationSessionStatusFailureTranscriptionRejectedWithError,
+
+  //! Too many errors occurred during transcription and the UI exited
+  DictationSessionStatusFailureSystemAborted,
+
+  //! No speech was detected and UI exited
+  DictationSessionStatusFailureNoSpeechDetected,
+
+  //! No BT or internet connection
+  DictationSessionStatusFailureConnectivityError,
+
+  //! Voice transcription disabled for this user
+  DictationSessionStatusFailureDisabled,
+
+  //! Voice transcription failed due to internal error
+  DictationSessionStatusFailureInternalError,
+
+  //! Cloud recognizer failed to transcribe speech (only possible if error dialogs disabled)
+  DictationSessionStatusFailureRecognizerError,
+} DictationSessionStatus;
+
+//! Dictation status callback. Indicates success or failure of the dictation session and, if
+//! successful, passes the transcribed string to the user of the dictation session. The transcribed
+//! string will be freed after this call returns, so the string should be copied if it needs to be
+//! retained afterwards.
+//! @param session        dictation session from which the status was received
+//! @param status         dictation status
+//! @param transcription  transcribed string
+//! @param context        callback context specified when starting the session
+typedef void (*DictationSessionStatusCallback)(DictationSession *session,
+                                               DictationSessionStatus status, char *transcription,
+                                               void *context);
+
+//! Create a dictation session. The session object can be used more than once to get a
+//! transcription. When a transcription is received a buffer will be allocated to store the text in
+//! with a maximum size specified by \ref buffer_size. When a transcription and accepted by the user
+//! or a failure of some sort occurs, the callback specified will be called with the status and the
+//! transcription if one was accepted.
+//! @param buffer_size       size of buffer to allocate for the transcription text; text will be
+//!                          truncated if it is longer than the maximum size specified; a size of 0
+//!                          will allow the session to allocate as much as it needs and text will
+//!                          not be truncated
+//! @param callback          dictation session status handler (must be valid)
+//! @param callback_context  context pointer for status handler
+//! @return handle to the dictation session or NULL if the phone app is not connected or does not
+//! support voice dictation, if this is called on a platform that doesn't support voice dictation,
+//! or if an internal error occurs.
+DictationSession *dictation_session_create(uint32_t buffer_size,
+                                           DictationSessionStatusCallback callback,
+                                           void *callback_context);
+
+//! Destroy the dictation session and free its memory. Will terminate a session in progress.
+//! @param session  dictation session to be destroyed
+void dictation_session_destroy(DictationSession *session);
+
+//! Start the dictation session. The dictation UI will be shown. When the user accepts a
+//! transcription or exits the UI, or, when the confirmation dialog is disabled and a status is
+//! received, the status callback will be called. Can only be called when no session is in progress.
+//! The session can be restarted multiple times after the UI is exited or the session is stopped.
+//! @param session  dictation session to start or restart
+//! @return true if session was started, false if session is already in progress or is invalid.
+DictationSessionStatus dictation_session_start(DictationSession *session);
+
+//! Stop the current dictation session. The UI will be hidden and no status callbacks will be
+//! received after the session is stopped.
+//! @param session  dictation session to stop
+//! @return true if session was stopped, false if session was not started or is invalid
+DictationSessionStatus dictation_session_stop(DictationSession *session);
+
+//! Enable or disable user confirmation of transcribed text, which allows the user to accept or
+//! reject (and restart) the transcription. Must be called before the session is started.
+//! @param session      dictation session to modify
+//! @param is_enabled   set to true to enable user confirmation of transcriptions (default), false
+//! to disable
+void dictation_session_enable_confirmation(DictationSession *session, bool is_enabled);
+
+//! Enable or disable error dialogs when transcription fails. Must be called before the session
+//! is started. Disabling error dialogs will also disable automatic retries if transcription fails.
+//! @param session      dictation session to modify
+//! @param is_enabled   set to true to enable error dialogs (default), false to disable
+void dictation_session_enable_error_dialogs(DictationSession *session, bool is_enabled);
+
+//! Convenience macro to switch between two expressions depending on mic support.
+//! On platforms with a mic the first expression will be chosen, the second otherwise.
+#define PBL_IF_MICROPHONE_ELSE(if_true, if_false) (if_false)
+
+//! @} // group Dictation
+
 //! @addtogroup AppMessage
 //!
 //!
@@ -1451,56 +1894,60 @@ Tuple *dict_find(const DictionaryIterator *iter, const uint32_t key);
 //! Refer to the \htmlinclude app-phone-communication.html for a conceptual overview and code usage.
 //!
 //! For code examples, refer to the SDK Examples that directly use App Message. These include:
-//!   * Examples/todolist-demo
-//!   * Examples/pebblekit-js/quotes
-//!   * Examples/weather-demo
+//!   * <a href="https://github.com/pebble-examples/pebblekit-js-weather">
+//!     pebblekit-js-weather</a>
+//!   * <a href="https://github.com/pebble-examples/pebblekit-js-quotes">
+//!     pebblekit-js-quotes</a>
 //! @{
 
 //! AppMessage result codes.
 typedef enum {
-  //! All good, operation was successful.
+  //! (0) All good, operation was successful.
   APP_MSG_OK = 0,
 
-  //! The other end did not confirm receiving the sent data with an (n)ack in time.
+  //! (2) The other end did not confirm receiving the sent data with an (n)ack in time.
   APP_MSG_SEND_TIMEOUT = 1 << 1,
 
-  //! The other end rejected the sent data, with a "nack" reply.
+  //! (4) The other end rejected the sent data, with a "nack" reply.
   APP_MSG_SEND_REJECTED = 1 << 2,
 
-  //! The other end was not connected.
+  //! (8) The other end was not connected.
   APP_MSG_NOT_CONNECTED = 1 << 3,
 
-  //! The local application was not running.
+  //! (16) The local application was not running.
   APP_MSG_APP_NOT_RUNNING = 1 << 4,
 
-  //! The function was called with invalid arguments.
+  //! (32) The function was called with invalid arguments.
   APP_MSG_INVALID_ARGS = 1 << 5,
 
-  //! There are pending (in or outbound) messages that need to be processed first before
+  //! (64) There are pending (in or outbound) messages that need to be processed first before
   //! new ones can be received or sent.
   APP_MSG_BUSY = 1 << 6,
 
-  //! The buffer was too small to contain the incoming message.
+  //! (128) The buffer was too small to contain the incoming message.
   APP_MSG_BUFFER_OVERFLOW = 1 << 7,
 
-  //! The resource had already been released.
+  //! (512) The resource had already been released.
   APP_MSG_ALREADY_RELEASED = 1 << 9,
 
-  //! The callback node was already registered, or its ListNode has not been initialized.
+  //! (1024) The callback was already registered.
   APP_MSG_CALLBACK_ALREADY_REGISTERED = 1 << 10,
 
-  //! The callback could not be deregistered, because it had not been registered before.
+  //! (2048) The callback could not be deregistered, because it had not been registered before.
   APP_MSG_CALLBACK_NOT_REGISTERED = 1 << 11,
 
-  //! The support library did not have sufficient application memory to perform the requested operation.
+  //! (4096) The system did not have sufficient application memory to
+  //! perform the requested operation.
   APP_MSG_OUT_OF_MEMORY = 1 << 12,
 
-  //! App message was closed
+  //! (8192) App message was closed.
   APP_MSG_CLOSED = 1 << 13,
 
-  //! An internal OS error prevented APP_MSG from completing an operation
+  //! (16384) An internal OS error prevented AppMessage from completing an operation.
   APP_MSG_INTERNAL_ERROR = 1 << 14,
 
+  //! (32768) The function was called while App Message was not in the appropriate state.
+  APP_MSG_INVALID_STATE = 1 << 15,
 } AppMessageResult;
 
 //! Open AppMessage to transfers.
@@ -1721,13 +2168,17 @@ AppMessageResult app_message_outbox_send(void);
 //! a Dictionary with Tuple structures.
 //!
 //! AppSync manages the storage and bookkeeping chores of the current Tuple values. AppSync copies
-//! incoming AppMessage Tuples into this "current" Dictionary, so that the key/values remain available
-//! for the UI to use. For example, it is safe to use a C-string value provided by AppSync and use it
-//! directly in a text_layer_set_text() call.
+//! incoming AppMessage Tuples into this "current" Dictionary, so that the key/values remain
+//! available for the UI to use. For example, it is safe to use a C-string value provided by AppSync
+//! and use it directly in a text_layer_set_text() call.
 //!
-//! Your app needs to supply the buffer that AppSync uses for the "current" Dictionary when initializing AppSync.
+//! Your app needs to supply the buffer that AppSync uses for the "current" Dictionary when
+//! initializing AppSync.
 //!
-//! Refer to the \htmlinclude app-phone-communication.html for a conceptual overview and code usage.
+//! Refer to the
+//! <a href="https://developer.getpebble.com/guides/pebble-apps/communications/appsync/">
+//! Synchronizing App UI</a>
+//! guide for a conceptual overview and code usage.
 //! @{
 
 //! Called whenever a Tuple changes. This does not necessarily mean the value in
@@ -1743,16 +2194,17 @@ AppMessageResult app_message_outbox_send(void);
 //! "current" dictionary, as backed by the buffer internal to the AppSync
 //! struct. Therefore the Tuple can be used after the callback returns, until
 //! the AppSync is deinited. In case there was an error (e.g. storage shortage),
-//! this `new_tuple` can be \ref NULL_TUPLE.
+//! this `new_tuple` can be `NULL_TUPLE`.
 //! @param old_tuple The values that will be replaced with `new_tuple`. The key,
 //! value and type will be equal to the previous tuple in the old destination
 //! dictionary; however, the `old_tuple` points to a stack-allocated copy of the
-//! old data. This value will be \ref NULL_TUPLE when the initial values are
+//! old data. This value will be `NULL_TUPLE` when the initial values are
 //! being set.
 //! @param context Pointer to application specific data, as set using
 //! \ref app_sync_init()
 //! @see \ref app_sync_init()
-typedef void (*AppSyncTupleChangedCallback)(const uint32_t key, const Tuple *new_tuple, const Tuple *old_tuple, void *context);
+typedef void (*AppSyncTupleChangedCallback)(const uint32_t key, const Tuple *new_tuple,
+                                            const Tuple *old_tuple, void *context);
 
 //! Called whenever there was an error.
 //! @param dict_error The dictionary result error code, if the error was
@@ -1762,7 +2214,8 @@ typedef void (*AppSyncTupleChangedCallback)(const uint32_t key, const Tuple *new
 //! @param context Pointer to application specific data, as set using
 //! \ref app_sync_init()
 //! @see \ref app_sync_init()
-typedef void (*AppSyncErrorCallback)(DictionaryResult dict_error, AppMessageResult app_message_error, void *context);
+typedef void (*AppSyncErrorCallback)(DictionaryResult dict_error,
+                                     AppMessageResult app_message_error, void *context);
 
 typedef struct AppSync {
   DictionaryIterator current_iter;
@@ -1798,8 +2251,10 @@ typedef struct AppSync {
 //! @note Only updates for the keys specified in this initial array will be
 //! accepted by AppSync, updates for other keys that might come in will just be
 //! ignored.
-void app_sync_init(struct AppSync *s, uint8_t *buffer, const uint16_t buffer_size, const Tuplet * const keys_and_initial_values, const uint8_t count,
-                   AppSyncTupleChangedCallback tuple_changed_callback, AppSyncErrorCallback error_callback, void *context);
+void app_sync_init(struct AppSync *s, uint8_t *buffer, const uint16_t buffer_size,
+                   const Tuplet * const keys_and_initial_values, const uint8_t count,
+                   AppSyncTupleChangedCallback tuple_changed_callback,
+                   AppSyncErrorCallback error_callback, void *context);
 
 //! Cleans up an AppSync system.
 //! It frees the buffer allocated by an \ref app_sync_init() call and
@@ -1820,7 +2275,8 @@ void app_sync_deinit(struct AppSync *s);
 //! @param count The number of Tuplets in the `keys_and_values_to_update` array.
 //! @return The result code from the \ref AppMessage subsystem.
 //! Can be \ref APP_MSG_OK, \ref APP_MSG_BUSY or \ref APP_MSG_INVALID_ARGS
-AppMessageResult app_sync_set(struct AppSync *s, const Tuplet * const keys_and_values_to_update, const uint8_t count);
+AppMessageResult app_sync_set(struct AppSync *s, const Tuplet * const keys_and_values_to_update,
+                              const uint8_t count);
 
 //! Finds and gets a tuple in the "current" dictionary.
 //! @param s The AppSync context
@@ -1846,6 +2302,112 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 //! resources into your app's bundle.
 //!
 //! @{
+
+//! @addtogroup FileFormats File Formats
+//! @{
+
+//! @addtogroup PNGFileFormat PNG8 File Format
+//!
+//! Pebble supports both a PBIs (uncompressed bitmap images) as well as PNG8 images.
+//! PNG images are compressed allowing for storage savings up to 90%.
+//! PNG8 is a PNG that uses palette-based or grayscale images with 1, 2, 4 or 8 bits per pixel.
+//! For palette-based images the pixel data represents the index into the palette, such
+//! that each pixel only needs to be large enough to represent the palette size, so
+//! \li \c 1-bit supports up to 2 colors,
+//! \li \c 2-bit supports up to 4 colors,
+//! \li \c 4-bit supports up to 16 colors,
+//! \li \c 8-bit supports up to 256 colors.
+//!
+//! There are 2 parts to the palette: the RGB24 color-mapping palette ("PLTE"), and the optional
+//! 8-bit transparency palette ("tRNs").  A pixel's color index maps to both tables, combining to
+//! allow the pixel to have both color as well as transparency.
+//!
+//! For grayscale images, the pixel data represents the luminosity (or shade of gray).
+//! \li \c 1-bit supports black and white
+//! \li \c 2-bit supports black, dark_gray, light_gray and white
+//! \li \c 4-bit supports black, white and 14 shades of gray
+//! \li \c 8-bit supports black, white and 254 shades of gray
+//!
+//! Optionally, grayscale images allow for 1 fully transparent color, which is removed from
+//! the fully-opaque colors above (e.g. a 2 bit grayscale image can have black, white, dark_gray
+//! and a transparent color).
+//!
+//! The Basalt Platform provides for 2-bits per color channel, so images are optimized by the
+//! SDK tooling when loaded as a resource-type "png" to the Pebble's 64-colors with 4 levels
+//! of transparency.  This optimization also handles mapping unsupported colors to the nearest
+//! supported color, and reducing the pixel depth to the number of bits required to support
+//! the optimized number of colors.  PNG8 images from other sources are supported, with the colors
+//! truncated to match supported colors at runtime.
+//!
+//! @see \ref gbitmap_create_from_png_data
+//! @see \ref gbitmap_create_with_resource
+//!
+//! @{
+
+//! @} // group PNGFileFormat
+
+//! @addtogroup PBIFileFormat PBI File Format
+//!
+//! PBIs are uncompressed bitmap images with support for color-mapping palettes.
+//! PBIs store images either as raw image pixels (1-bit black and white, or 8-bit ARGB) or as
+//! palette-based images with 1, 2, or 4 bits per pixel.
+//! For palette-based images the pixel data represents the index into the palette, such
+//! that each pixel only needs to be large enough to represent the palette size, so
+//! \li \c 1-bit supports up to 2 colors,
+//! \li \c 2-bit supports up to 4 colors,
+//! \li \c 4-bit supports up to 16 colors.
+//!
+//! The metadata describes how long each row of pixels is in the buffer (the stride).
+//! The following restrictions on stride are in place for different formats:
+//!
+//! - \ref GBitmapFormat1Bit:
+//!   Each row must be a multiple of 32 pixels (4 bytes). Using the `bounds` field,
+//!   the area that is actually relevant can be specified.
+//!   For example, when the image is 29 by 5 pixels
+//!   (width by height) and the first bit of image data is the pixel at (0, 0),
+//!   then the bounds.size would be `GSize(29, 5)` and bounds.origin would be `GPoint(0, 0)`.
+//!   ![](gbitmap.png)
+//!   In the illustration each pixel is a representated as a square. The white
+//!   squares are the bits that are used, the gray squares are the padding bits, because
+//!   each row of image data has to be a multiple of 4 bytes (32 bits).
+//!   The numbers in the column in the left are the offsets (in bytes) from the `*addr`
+//!   field of the GBitmap.
+//!   Each pixel in a bitmap is represented by 1 bit. If a bit is set (`1` or `true`),
+//!   it will result in a white pixel, and vice versa, if a bit is cleared (`0` or `false`),
+//!   it will result in a black pixel.
+//!   ![](pixel_bit_values.png)
+//!
+//! - \ref GBitmapFormat8Bit:
+//!   Each pixel in the bitmap is represented by 1 byte. The color value of that byte correspends to
+//!   a GColor.argb value.
+//!   There is no restriction on row_size_bytes / stride.
+//!
+//! - \ref GBitmapFormat1BitPalette, \ref GBitmapFormat2BitPalette, \ref GBitmapFormat4BitPalette:
+//!   Each pixel in the bitmap is represented by the number of bits the format specifies. Pixels
+//!   must be packed.
+//!   For example, in GBitmapFormat2BitPalette, each pixel uses 2 bits. This means 4 pixels / byte.
+//!   Rows need to be byte-aligned, meaning that there can be up to 3 unused pixels at the end of
+//!   each line. If the image is 5 pixels wide and 4 pixels tall, row_size_bytes = 2,
+//!   and each row in the bitmap must take 2 bytes, so the bitmap data is 8 bytes in total.
+//!
+//! Palettized bitmaps also need to have a palette. The palette must be of the correct size, which
+//! is specified by the format. For example, \ref GBitmapFormat4BitPalette uses 4 bits per pixel,
+//! meaning that there must be 2^4 = 16 colors in the palette.
+//!
+//! The Basalt Platform provides for 2-bits per color channel, so images are optimized by the
+//! SDK tooling when loaded as a resource-type "pbi" to the Pebble's 64-colors with 4 levels
+//! of transparency.  This optimization also handles mapping unsupported colors to the nearest
+//! supported color, and reducing the pixel depth to the number of bits required to support
+//! the optimized number of colors.
+//!
+//! @see \ref gbitmap_create_with_data
+//! @see \ref gbitmap_create_with_resource
+//!
+//! @{
+
+//! @} // group PBIFileFormat
+
+//! @} // group FileFormats
 
 //! Opaque reference to a resource.
 //! @see \ref resource_get_handle()
@@ -1907,17 +2469,12 @@ size_t resource_load_byte_range(
 //! @{
 
 //! The event loop for apps, to be used in app's main(). Will block until the app is ready to exit.
-//! @see \ref App
 void app_event_loop(void);
 
 //! @} // group App
 
 //! @addtogroup AppWorker
-//!
-//! \brief Managing the app worker
-//!
-//! This modules contains functions for and managing the worker task, querying its status, and communicating with it
-//!
+//!   \brief Runs in the background, and can communicate with the foreground app.
 //! @{
 
 //! Possible error codes from app_worker_launch, app_worker_kill
@@ -2020,6 +2577,7 @@ SniffInterval app_comm_get_sniff_interval(void);
 //! @} // group AppComm
 
 //! @addtogroup Timer
+//!   \brief Can be used to execute some code at some point in the future.
 //! @{
 
 //! Waits for a certain amount of milliseconds
@@ -2037,6 +2595,7 @@ typedef void (*AppTimerCallback)(void* data);
 //! @param timeout_ms The expiry time in milliseconds from the current time
 //! @param callback The callback that gets called at expiry time
 //! @param callback_data The data that will be passed to callback
+//! @return A pointer to an `AppTimer` that can be used to later reschedule or cancel this timer
 AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void* callback_data);
 
 //! Reschedules an already running timer for some point in the future.
@@ -2045,7 +2604,8 @@ AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, voi
 //! @return true if the timer was rescheduled, false if the timer has already elapsed
 bool app_timer_reschedule(AppTimer *timer_handle, uint32_t new_timeout_ms);
 
-//! Cancels an already registered timer. Once cancelled the the handle may longer be used for any purpose.
+//! Cancels an already registered timer.
+//! Once cancelled the handle may no longer be used for any purpose.
 void app_timer_cancel(AppTimer *timer_handle);
 
 //! @} // group Timer
@@ -2085,7 +2645,7 @@ size_t heap_bytes_used(void);
 //! retrieve values from the phone, it provides you with a much faster way to restore state.
 //! In addition, it draws less power from the battery.
 //!
-//! Note that the size of all persisted values cannot exceed 4K.
+//! Note that the size of all persisted values cannot exceed 4K per app.
 //! @{
 
 //! The maximum size of a persist value in bytes
@@ -2131,6 +2691,9 @@ typedef enum StatusCode {
 
   //! Another operation prevented this one.
   E_BUSY = -11,
+
+  //! Operation not completed; try again.
+  E_AGAIN = -12,
 
   //! Equivalent of boolean true.
   S_TRUE = 1,
@@ -2225,13 +2788,7 @@ status_t persist_delete(const uint32_t key);
 //! @} // group Storage
 
 //! @addtogroup Wakeup
-//!   \brief The wakeup API allows applications to schedule for a wakeup event.
-//!   Wakeup events launch applications at a specified time if they are not running,
-//!   and calls the WakeupHandler callback if the application has subscribed to the service.
-//!   @note The WakeupHander callback will occur only for applications that have subscribed 
-//!   a wakeup handler and are running when a wakeup event occurs.
-//!   \ref clock_to_timestamp is provided to simplify wakeup event scheduling.
-//!
+//!   \brief Allows applications to schedule to be launched even if they are not running.
 //! @{
 
 //! WakeupId is an identifier for a wakeup event
@@ -2239,7 +2796,7 @@ typedef int32_t WakeupId;
 
 //! The type of function which can be called when a wakeup event occurs.  
 //! The arguments will be the id of the wakeup event that occurred, 
-//! as well as the scheduled cookie provided to \ref app_wakeup_schedule.
+//! as well as the scheduled cookie provided to \ref wakeup_schedule.
 typedef void (*WakeupHandler)(WakeupId wakeup_id, int32_t cookie);
 
 //! Registers a WakeupHandler to be called when wakeup events occur.
@@ -2310,11 +2867,18 @@ typedef enum {
   APP_LAUNCH_WAKEUP,      //!< App launched by wakeup event
   APP_LAUNCH_WORKER,      //!< App launched by worker calling worker_launch_app()
   APP_LAUNCH_QUICK_LAUNCH, //!< App launched by user using quick launch
+  APP_LAUNCH_TIMELINE_ACTION,  //!< App launched by user opening it from a pin
 } AppLaunchReason;
 
 //! Provides the method used to launch the current application.
 //! @return The method or reason the current application was launched
 AppLaunchReason launch_reason(void);
+
+//! Get the argument passed to the app when it was launched.
+//! @note Currently the only way to pass arguments to apps is by using an openWatchApp action
+//! on a pin.
+//! @return The argument passed to the app, or 0 if the app wasn't launched from a Launch App action
+uint32_t launch_get_args(void);
 
 //! @} // group LaunchReason
 
@@ -2328,18 +2892,53 @@ AppLaunchReason launch_reason(void);
 //!
 //! @{
 
-//! Color values.
-typedef enum GColor {
-  //! Represents "clear" or transparent.
-  GColorClear = ~0,
-  //! Represents black.
-  GColorBlack = 0,
-  //! Represents white.
-  GColorWhite = 1,
-} GColor;
+typedef union GColor8 {
+  uint8_t argb;
+  struct {
+    uint8_t b:2; //!< Blue
+    uint8_t g:2; //!< Green
+    uint8_t r:2; //!< Red
+    uint8_t a:2; //!< Alpha. 3 = 100% opaque, 2 = 66% opaque, 1 = 33% opaque, 0 = transparent.
+  };
+} GColor8;
+
+typedef GColor8 GColor;
+
+#include "gcolor_definitions.h"
+
+//! Comparison function for GColors.
+bool gcolor_equal(GColor8 x, GColor8 y);
+
+//! This method assists in improving the legibility of text on various background colors.
+//! It takes the background color for the region in question and computes a color for
+//! maximum legibility.
+//! @param background_color Background color for the region in question
+//! @return A legible color for the given background color
+GColor8 gcolor_legible_over(GColor8 background_color);
+
+//! Convenience macro allowing use of a fallback color for black and white platforms.
+//! On color platforms, the first expression will be chosen, the second otherwise.
+#define COLOR_FALLBACK(color, bw) (bw)
+
+//! Convenience macro to switch between two expression depending on the screen of the platform.
+//! On platforms with rectangular screen, the first expression will be chosen, the second otherwise.
+#define PBL_IF_RECT_ELSE(if_true, if_false) (if_true)
+
+//! Convenience macro to switch between two expression depending on the screen of the platform.
+//! On platforms with round screen, the first expression will be chosen, the second otherwise.
+#define PBL_IF_ROUND_ELSE(if_true, if_false) (if_false)
+
+//! Convenience macro to switch between two expression depending on the screen of the platform.
+//! On black& white platforms, the first expression will be chosen, the second otherwise.
+#define PBL_IF_BW_ELSE(if_true, if_false) (if_true)
+
+//! Convenience macro to switch between two expression depending on the screen of the platform.
+//! On color platforms, the first expression will be chosen, the second otherwise.
+#define PBL_IF_COLOR_ELSE(if_true, if_false) (if_false)
 
 //! Represents a point in a 2-dimensional coordinate system.
-//! @note Conventionally, the origin of Pebble's 2D coordinate system is in the upper, lefthand corner
+//! @note Conventionally, the origin of Pebble's 2D coordinate system is in the upper,
+//! lefthand corner
 //! its x-axis extends to the right and its y-axis extends to the bottom of the screen.
 typedef struct GPoint {
   //! The x-coordinate.
@@ -2446,57 +3045,93 @@ GPoint grect_center_point(const GRect *rect);
 //! @return The cropped rectangle.
 GRect grect_crop(GRect rect, const int32_t crop_size_px);
 
-//! Structure containing the metadata of a bitmap image.
-//!
-//! Note that this structure does NOT contain any pixel data; it only has a pointer
-//! to a buffer containing the pixels (the `addr` field).
-//! The metadata describes how long each row of pixels is in the buffer (the stride).
-//! Each row must be a multiple of 32 pixels (4 bytes). Using the `bounds` field,
-//! the area that is actually relevant can be specified.
-//!
-//! For example, when the image is 29 by 5 pixels
-//! (width by height) and the first bit of image data is the pixel at (0, 0),
-//! then the bounds.size would be `GSize(29, 5)` and bounds.origin would be `GPoint(0, 0)`.
-//! ![](gbitmap.png)
-//! In the illustration each pixel is a representated as a square. The white
-//! squares are the bits that are used, the gray squares are the padding bits, because
-//! each row of image data has to be a multiple of 4 bytes (32 bits).
-//! The numbers in the column in the left are the offsets (in bytes) from the `*addr`
-//! field of the GBitmap.
-//!
-//! Each pixel in a bitmap is represented by 1 bit. If a bit is set (`1` or `true`), it will result in a
-//! white pixel, and vice versa, if a bit is cleared (`0` or `false`), it will result in a black
-//! pixel.
-//! ![](pixel_bit_values.png)
-//! @see \ref BitmapLayer
-//! @see \ref graphics_draw_bitmap_in_rect
-//! @see \ref Resources
-typedef struct __attribute__ ((__packed__)) GBitmap {
-  //! Pointer to the address where the image data lives
-  void *addr;
-  //! @note The number of bytes per row should be a multiple of 4.
-  //! Also, the following should (naturally) be true: `(row_size_bytes * 8 >= bounds.w)`
-  uint16_t row_size_bytes;
+//! Repeat Sequence or animation indefinitely.
+#define PLAY_COUNT_INFINITE UINT32_MAX
 
-  //! Private attributes used by the system.
-  union {
-    //! Bitfields of metadata flags.
-    uint16_t info_flags;
+//! Duration of Sequence or animation is infinite.
+#define PLAY_DURATION_INFINITE UINT32_MAX
 
-    struct {
-      //! Is .addr heap allocated? Do we need to free .addr in gbitmap_deinit?
-      bool is_heap_allocated:1;
-      uint16_t reserved:11;
-       //! Version of bitmap structure and image data.
-      uint8_t version:4;
-    };
-  };
+//! The format of a GBitmap can either be 1-bit or 8-bit.
+typedef enum GBitmapFormat {
+  GBitmapFormat1Bit = 0, //<! 1-bit black and white. 0 = black, 1 = white.
+  GBitmapFormat8Bit,      //<! 6-bit color + 2 bit alpha channel. See \ref GColor8 for pixel format.
+  GBitmapFormat1BitPalette,
+  GBitmapFormat2BitPalette,
+  GBitmapFormat4BitPalette,
+  GBitmapFormat8BitCircular,
+} GBitmapFormat;
 
-  //! The box of bits that the `addr` field is pointing to, that contains
-  //! the actual image data to use. Note that this may be a subsection of the
-  //! data with padding on all sides.
-  GRect bounds;
-} GBitmap;
+struct GBitmap;
+typedef struct GBitmap GBitmap;
+
+struct GBitmapSequence;
+typedef struct GBitmapSequence GBitmapSequence;
+
+//! Get the number of bytes per row in the bitmap data for the given \ref GBitmap.
+//! On rectangular displays, this can be used as a safe way of iterating over the rows in the
+//! bitmap, since bytes per row should be set according to format. On circular displays with pixel
+//! format of \ref GBitmapFormat8BitCircular this will return 0, and should not be used for
+//! iteration over frame buffer pixels. Instead, use \ref GBitmapDataRowInfo, which provides safe
+//! minimum and maximum x values for a given row's y value.
+//! @param bitmap A pointer to the GBitmap to get the bytes per row
+//! @return The number of bytes per row of the GBitmap
+//! @see \ref gbitmap_get_data
+uint16_t gbitmap_get_bytes_per_row(const GBitmap *bitmap);
+
+//! Get the \ref GBitmapFormat for the \ref GBitmap.
+//! @param bitmap A pointer to the GBitmap to get the format
+//! @return The format of the given \ref GBitmap.
+GBitmapFormat gbitmap_get_format(const GBitmap *bitmap);
+
+//! Get a pointer to the raw image data section of the given \ref GBitmap as specified by the format
+//! of the bitmap.
+//! @param bitmap A pointer to the GBitmap to get the data
+//! @return pointer to the raw image data for the GBitmap
+//! @see \ref gbitmap_get_bytes_per_row
+//! @see \ref GBitmap
+uint8_t* gbitmap_get_data(const GBitmap *bitmap);
+
+//! Set the bitmap data for the given \ref GBitmap.
+//! @param bitmap A pointer to the GBitmap to set data to
+//! @param data A pointer to the bitmap data
+//! @param format the format of the bitmap data. If this is a palettized format, make sure that
+//! there is an accompanying call to \ref gbitmap_set_palette.
+//! @param row_size_bytes How many bytes a single row takes. For example, bitmap data of format
+//! \ref GBitmapFormat1Bit must have a row size as a multiple of 4 bytes.
+//! @param free_on_destroy Set whether the data should be freed when the GBitmap is destroyed.
+//! @see \ref gbitmap_destroy
+void gbitmap_set_data(GBitmap *bitmap, uint8_t *data, GBitmapFormat format,
+                     uint16_t row_size_bytes, bool free_on_destroy);
+
+//! Gets the bounds of the content for the \ref GBitmap. This is set when loading the image or
+//! if changed by \ref gbitmap_set_bounds.
+//! @param bitmap A pointer to the GBitmap to get the bounding box from.
+//! @return The bounding box for the GBitmap.
+//! @see \ref gbitmap_set_bounds
+GRect gbitmap_get_bounds(const GBitmap *bitmap);
+
+//! Set the bounds of the given \ref GBitmap.
+//! @param bitmap A pointer to the GBitmap to set the bounding box.
+//! @param bounds The bounding box to set.
+//! @see \ref gbitmap_get_bounds
+void gbitmap_set_bounds(GBitmap *bitmap, GRect bounds);
+
+//! Get the palette for the given \ref GBitmap.
+//! @param bitmap A pointer to the GBitmap to get the palette from.
+//! @return Pointer to a \ref GColor array containing the palette colors.
+//! @see \ref gbitmap_set_palette
+GColor* gbitmap_get_palette(const GBitmap *bitmap);
+
+//! Set the palette for the given \ref GBitmap.
+//! @param bitmap A pointer to the GBitmap to set the palette to
+//! @param palette The palette to be used. Make sure that the palette is large enough for the
+//! bitmap's format.
+//! @param free_on_destroy Set whether the palette data should be freed when the GBitmap is
+//! destroyed or when another palette is set.
+//! @see \ref gbitmap_get_format
+//! @see \ref gbitmap_destroy
+//! @see \ref gbitmap_set_palette
+void gbitmap_set_palette(GBitmap *bitmap, GColor *palette, bool free_on_destroy);
 
 //! Creates a new \ref GBitmap on the heap using a Pebble image file stored as a resource.
 //! The resulting GBitmap must be destroyed using \ref gbitmap_destroy().
@@ -2522,9 +3157,9 @@ GBitmap* gbitmap_create_with_data(const uint8_t *data);
 
 //! Create a new \ref GBitmap on the heap as a sub-bitmap of a 'base' \ref
 //! GBitmap, using a GRect to indicate what portion of the base to use. The
-//! sub-bitmap will just reference the image data of the base bitmap.
+//! sub-bitmap will just reference the image data and palette of the base bitmap.
 //! No deep-copying occurs as a result of calling this function, thus the caller
-//! is responsible for making sure the base bitmap will remain available when
+//! is responsible for making sure the base bitmap and palette will remain available when
 //! using the sub-bitmap. Note that you should not destroy the parent bitmap until
 //! the sub_bitmap has been destroyed.
 //! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
@@ -2536,12 +3171,50 @@ GBitmap* gbitmap_create_with_data(const uint8_t *data);
 //! be created
 GBitmap* gbitmap_create_as_sub_bitmap(const GBitmap *base_bitmap, GRect sub_rect);
 
-//! Creates a new blank GBitmap on the heap initialized to zeroes.
+//! Create a \ref GBitmap based on raw PNG data.
 //! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
-//! @param size The Pebble image dimensions as a \ref GSize.
+//! The developer is responsible for freeing png_data following this call.
+//! @note PNG decoding currently supports 1,2,4 and 8 bit palettized and grayscale images.
+//! @param png_data PNG image data.
+//! @param png_data_size PNG image size in bytes.
 //! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
 //! be created
-GBitmap* gbitmap_create_blank(GSize size);
+GBitmap* gbitmap_create_from_png_data(const uint8_t *png_data, size_t png_data_size);
+
+//! Creates a new blank GBitmap on the heap initialized to zeroes.
+//! In the case that the format indicates a palettized bitmap, a palette of appropriate size will
+//! also be allocated on the heap.
+//! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
+//! @param size The Pebble image dimensions as a \ref GSize.
+//! @param format The \ref GBitmapFormat the created image should be in.
+//! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
+//! be created
+GBitmap* gbitmap_create_blank(GSize size, GBitmapFormat format);
+
+//! Creates a new blank GBitmap on the heap, initialized to zeroes, and assigns it the given
+//! palette.
+//! No deep-copying of the palette occurs, so the caller is responsible for making sure the palette
+//! remains available when using the resulting bitmap. Management of that memory can be handed off
+//! to the system with the free_on_destroy argument.
+//! @param size The Pebble image dimensions as a \ref GSize.
+//! @param format the \ref GBitmapFormat the created image and palette should be in.
+//! @param palette a pointer to a palette that is to be used for this GBitmap. The palette should
+//! be large enough to hold enough colors for the specified format. For example,
+//! \ref GBitmapFormat2BitPalette should have 4 colors, since 2^2 = 4.
+//! @param free_on_destroy Set whether the palette data should be freed along with the bitmap data
+//! when the GBitmap is destroyed.
+//! @return A Pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not be created.
+GBitmap* gbitmap_create_blank_with_palette(GSize size, GBitmapFormat format,
+                                           GColor *palette, bool free_on_destroy);
+
+//! Given a 1-bit GBitmap, create a new bitmap of format GBitmapFormat1BitPalette.
+//! The new data buffer is allocated on the heap, and a 2-color palette is allocated as well.
+//! @param src_bitmap A GBitmap of format GBitmapFormat1Bit which is to be copied into a newly
+//! created GBitmap of format GBitmapFormat1BitPalettized.
+//! @returns The newly created 1-bit palettized GBitmap, or NULL if there is not sufficient space.
+//! @note The new bitmap does not depend on any data from src_bitmap, so src_bitmap can be freed
+//! without worry.
+GBitmap* gbitmap_create_palettized_from_1bit(const GBitmap *src_bitmap);
 
 //! Destroy a \ref GBitmap.
 //! This must be called for every bitmap that's been created with gbitmap_create_*
@@ -2552,6 +3225,114 @@ GBitmap* gbitmap_create_blank(GSize size);
 //! If the GBitmap was created with \ref gbitmap_create_with_data(), you must release the memory
 //! after calling gbitmap_destroy().
 void gbitmap_destroy(GBitmap* bitmap);
+
+//! Creates a GBitmapSequence from the specified resource (APNG/PNG files)
+//! @param resource_id Resource to load and create GBitmapSequence from.
+//! @return GBitmapSequence pointer if the resource was loaded, NULL otherwise
+GBitmapSequence *gbitmap_sequence_create_with_resource(uint32_t resource_id);
+
+//! Updates the contents of the bitmap sequence to the next frame
+//! and optionally returns the delay in milliseconds until the next frame.
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @param bitmap Pointer to the initialized GBitmap in which to render the bitmap sequence
+//! @param[out] delay_ms If not NULL, returns the delay in milliseconds until the next frame.
+//! @return True if frame was rendered.  False if all frames (and loops) have been rendered
+//! for the sequence.  Will also return false if frame could not be rendered
+//! (includes out of memory errors).
+//! @note GBitmap must be large enough to accommodate the bitmap_sequence image
+//! \ref gbitmap_sequence_get_bitmap_size
+bool gbitmap_sequence_update_bitmap_next_frame(GBitmapSequence *bitmap_sequence,
+    GBitmap *bitmap, uint32_t *delay_ms);
+
+//! Updates the contents of the bitmap sequence to the frame at elapsed in the sequence.
+//! For looping animations this accounts for the loop, for example an animation of 1 second that
+//! is configured to loop 2 times updated to 1500 ms elapsed time will display the sequence
+//! frame at 500 ms.  Elapsed time is the time from the start of the animation, and will
+//! be ignored if it is for a time earlier than the last rendered frame.
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @param bitmap Pointer to the initialized GBitmap in which to render the bitmap sequence
+//! @param elapsed_ms Elapsed time in milliseconds in the sequence relative to start
+//! @return True if a frame was rendered.  False if all frames (and loops) have already
+//! been rendered for the sequence.  Will also return false if frame could not be rendered
+//! (includes out of memory errors).
+//! @note GBitmap must be large enough to accommodate the bitmap_sequence image
+//! \ref gbitmap_sequence_get_bitmap_size
+//! @note This function is disabled for play_count 0
+bool gbitmap_sequence_update_bitmap_by_elapsed(GBitmapSequence *bitmap_sequence,
+    GBitmap *bitmap, uint32_t elapsed_ms);
+
+//! Deletes the GBitmapSequence structure and frees any allocated memory/decoder_data
+//! @param bitmap_sequence Pointer to the bitmap sequence to free (delete)
+void gbitmap_sequence_destroy(GBitmapSequence *bitmap_sequence);
+
+//! Restarts the GBitmapSequence to the first frame \ref gbitmap_sequence_update_bitmap_next_frame
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @return True if sequence was restarted, false otherwise
+bool gbitmap_sequence_restart(GBitmapSequence *bitmap_sequence);
+
+//! This function gets the current frame number for the bitmap sequence
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @return index of current frame in the current loop of the bitmap sequence
+int32_t gbitmap_sequence_get_current_frame_idx(GBitmapSequence *bitmap_sequence);
+
+//! This function sets the total number of frames for the bitmap sequence
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @return number of frames contained in a single loop of the bitmap sequence
+uint32_t gbitmap_sequence_get_total_num_frames(GBitmapSequence *bitmap_sequence);
+
+//! This function gets the play count (number of times to repeat) the bitmap sequence
+//! @note This value is initialized by the bitmap sequence data, and is modified by
+//! \ref gbitmap_sequence_set_play_count
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @return Play count of bitmap sequence, PLAY_COUNT_INFINITE for infinite looping
+uint32_t gbitmap_sequence_get_play_count(GBitmapSequence *bitmap_sequence);
+
+//! This function sets the play count (number of times to repeat) the bitmap sequence
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @param play_count Number of times to repeat the bitmap sequence
+//! with 0 disabling update_by_elapsed and update_next_frame, and
+//! PLAY_COUNT_INFINITE for infinite looping of the animation
+void gbitmap_sequence_set_play_count(GBitmapSequence *bitmap_sequence, uint32_t play_count);
+
+//! This function gets the minimum required size (dimensions) necessary
+//! to render the bitmap sequence to a GBitmap
+//! using the /ref gbitmap_sequence_update_bitmap_next_frame
+//! @param bitmap_sequence Pointer to loaded bitmap sequence
+//! @return Dimensions required to render the bitmap sequence to a GBitmap
+GSize gbitmap_sequence_get_bitmap_size(GBitmapSequence *bitmap_sequence);
+
+//! Description of a single data row in the pixel data of a bitmap
+//! @note This data type describes the actual pixel data of a bitmap and does not respect the
+//!       bitmap's bounds.
+//! @see \ref gbitmap_get_data_row_info
+//! @see \ref gbitmap_get_data
+//! @see \ref gbitmap_get_bounds
+typedef struct {
+    //! Address of the byte at column 0 of a given data row in a bitmap. Use this to calculate the
+    //! memory address of a pixel. For GBitmapFormat8BitCircular or GBitmapFormat8Bit this would
+    //! be: `uint8_t *pixel_addr = row_info.addr + x`.
+    //! Note that this byte can be outside of the valid range for this row.
+    //! For example: The first valid pixel (`min_x=76`) of a row might start at 76 bytes after the
+    //! given data pointer (assuming that 1 pixel is represented as 1 byte as in
+    //! GBitmapFormat8BitCircular or GBitmapFormat8Bit).
+    uint8_t *data;
+    //! The absolute column of a first valid pixel for a given data row.
+    int16_t min_x;
+    //! The absolute column of the last valid pixel for a given data row.
+    //! For optimization reasons the result can be anywhere between
+    //! grect_get_max_x(bitmap_bounds) - 1 and the physical data boundary.
+    int16_t max_x;
+} GBitmapDataRowInfo;
+
+//! Provides information about a pixel data row
+//! @param bitmap A pointer to the GBitmap to get row info
+//! @param y Absolute row number in the pixel data, independent from the bitmap's bounds
+//! @return Description of the row
+//! @note This function does not respect the bitmap's bounds but purely operates on the pixel data.
+//!       This function works with every bitmap format including GBitmapFormat1Bit.
+//!       The result of the function for invalid rows is undefined.
+//! @see \ref gbitmap_get_data
+GBitmapDataRowInfo gbitmap_get_data_row_info(const GBitmap *bitmap, uint16_t y);
 
 //! Values to specify how two things should be aligned relative to each other.
 //! ![](galign.png)
@@ -2591,60 +3372,117 @@ void grect_align(GRect *rect, const GRect *inside_rect, const GAlign alignment, 
 
 //! Values to specify how the source image should be composited onto the destination image.
 //!
-//! There is no notion of "transparency" in the graphics system. However, the effect of transparency
-//! can be created by masking and using compositing modes.
+//! For Aplite, there is no notion of "transparency" in the graphics system. However, the effect of
+//! transparency can be created by masking and using compositing modes.
 //! ![](compops.png)
 //! Contrived example of how the different compositing modes affect drawing.
 //! Often, the "destination image" is the render buffer and thus contains the image of
 //! what has been drawn before or "underneath".
+//!
+//! For Basalt, at the moment, only two compositing modes are supported, \ref GCompOpAssign and
+//! \ref GCompOpSet. The behavior of other compositing modes are undefined and may change in the
+//! future. Transparency can be achieved using \ref GCompOpSet and requires pixel values with alpha
+//! value .a < 3.
 //! @see \ref bitmap_layer_set_compositing_mode()
 //! @see \ref graphics_context_set_compositing_mode()
 //! @see \ref graphics_draw_bitmap_in_rect()
+//! @see \ref graphics_draw_rotated_bitmap()
 typedef enum {
   //! Assign the pixel values of the source image to the destination pixels,
-  //! effectively replacing the previous values for those pixels.
+  //! effectively replacing the previous values for those pixels. For Basalt, when drawing a color
+  //! palettized or 8-bit \ref GBitmap image, the opacity value is ignored.
   GCompOpAssign,
   //! Assign the **inverted** pixel values of the source image to the destination pixels,
   //! effectively replacing the previous values for those pixels.
+  //! @note For Basalt, this mode is not supported and the resulting behavior is undefined.
   GCompOpAssignInverted,
   //! Use the boolean operator `OR` to composite the source and destination pixels.
   //! The visual result of this compositing mode is the source's white pixels
   //! are painted onto the destination and the source's black pixels are treated
   //! as clear.
+  //! @note For Basalt, this mode is not supported and the resulting behavior is undefined.
   GCompOpOr,
   //! Use the boolean operator `AND` to composite the source and destination pixels.
   //! The visual result of this compositing mode is the source's black pixels
   //! are painted onto the destination and the source's white pixels are treated
   //! as clear.
+  //! @note For Basalt, this mode is not supported and the resulting behavior is undefined.
   GCompOpAnd,
   //! Clears the bits in the destination image, using the source image as mask.
   //! The visual result of this compositing mode is that for the parts where the source image is
   //! white, the destination image will be painted black. Other parts will be left untouched.
+  //! @note For Basalt, this mode is not supported and the resulting behavior is undefined.
   GCompOpClear,
-  //! Sets the bits in the destination image, using the source image as mask.
-  //! The visual result of this compositing mode is that for the parts where the source image is
+  //! Sets the bits in the destination image, using the source image as mask. For Aplite,
+  //! the visual result of this compositing mode is that for the parts where the source image is
   //! black, the destination image will be painted white. Other parts will be left untouched.
+  //! For Basalt, when drawing a color palettized or 8-bit \ref GBitmap image, this mode will be
+  //! required to apply any transparency.
   GCompOpSet,
 } GCompOp;
 
-
-typedef struct {
-  //! The box relative to bitmap's bounds, that graphics functions MUST use to clip what they draw
-  GRect clip_box;
-  //! The box relative to bitmap's bounds, that graphics functions MUST use as their coordinate space
-  GRect drawing_box;
-  //! Line drawing functions MUST use this as line color
-  GColor stroke_color:2;
-  //! Fill drawing functions MUST use this as fill color
-  GColor fill_color:2;
-  //! Text drawing functions MUST use this as text color
-  GColor text_color:2;
-  //! Bitmap compositing functions MUST use this as the compositing mode
-  GCompOp compositing_mode:3;
-} GDrawState;
-
 struct GContext;
 typedef struct GContext GContext;
+
+//! Represents insets for four sides. Negative values mean a side extends.
+//! @see \ref grect_inset
+typedef struct {
+  //! The inset at the top of an object.
+  int16_t top;
+  //! The inset at the right of an object.
+  int16_t right;
+  //! The inset at the bottom of an object.
+  int16_t bottom;
+  //! The inset at the left of an object.
+  int16_t left;
+} GEdgeInsets;
+
+//! helper for \ref GEdgeInsets macro
+#define GEdgeInsets4(t, r, b, l) \
+  ((GEdgeInsets){.top = t, .right = r, .bottom = b, .left = l})
+
+//! helper for \ref GEdgeInsets macro
+#define GEdgeInsets3(t, rl, b) \
+  ((GEdgeInsets){.top = t, .right = rl, .bottom = b, .left = rl})
+
+//! helper for \ref GEdgeInsets macro
+#define GEdgeInsets2(tb, rl) \
+  ((GEdgeInsets){.top = tb, .right = rl, .bottom = tb, .left = rl})
+
+//! helper for \ref GEdgeInsets macro
+#define GEdgeInsets1(trbl) \
+  ((GEdgeInsets){.top = trbl, .right = trbl, .bottom = trbl, .left = trbl})
+
+//! helper for \ref GEdgeInsets macro
+#define GEdgeInsetsN(_1, _2, _3, _4, NAME, ...) NAME
+
+//! Convenience macro to make a GEdgeInsets
+//! This macro follows the CSS shorthand notation where you can call it with
+//!  - just one value GEdgeInsets(v1) to configure all edges with v1
+//!    (GEdgeInsets){.top = v1, .right = v1, .bottom = v1, .left = v1}
+//!  - two values v1, v2 to configure a vertical and horizontal inset as
+//!    (GEdgeInsets){.top = v1, .right = v2, .bottom = v1, .left = v2}
+//!  - three values v1, v2, v3 to configure it with
+//!    (GEdgeInsets){.top = v1, .right = v2, .bottom = v3, .left = v2}
+//!  - four values v1, v2, v3, v4 to configure it with
+//!    (GEdgeInsets){.top = v1, .right = v2, .bottom = v3, .left = v4}
+//! @see \ref grect_insets
+#define GEdgeInsets(...) \
+  GEdgeInsetsN(__VA_ARGS__, GEdgeInsets4, GEdgeInsets3, GEdgeInsets2, GEdgeInsets1)(__VA_ARGS__)
+
+//! Returns a rectangle that is shrinked or expanded by the given edge insets.
+//! @note The rectangle is standardized and then the inset parameters are applied.
+//! If the resulting rectangle would have a negative height or width, a GRectZero is returned.
+//! @param rect The rectangle that will be inset
+//! @param insets The insets that will be applied
+//! @return The resulting rectangle
+//! @note Use this function in together with the \ref GEdgeInsets macro
+//! \code{.c}
+//! GRect r_inset_all_sides = grect_inset(r, GEdgeInsets(10));
+//! GRect r_inset_vertical_horizontal = grect_inset(r, GEdgeInsets(10, 20));
+//! GRect r_expand_top_right_shrink_bottom_left = grect_inset(r, GEdgeInsets(-10, -10, 10, 10));
+//! \endcode
+GRect grect_inset(GRect rect, GEdgeInsets insets);
 
 //! @} // group GraphicsTypes
 
@@ -2695,9 +3533,25 @@ void graphics_context_set_text_color(GContext* ctx, GColor color);
 //! @see \ref GCompOp
 //! @see \ref bitmap_layer_set_compositing_mode()
 //! @note At the moment, this only affects the bitmaps drawing operations
-//! -- \ref graphics_draw_bitmap_in_rect() and anything that uses that --, but it
-//! currently does not affect the filling or stroking operations.
+//! -- \ref graphics_draw_bitmap_in_rect(), \ref graphics_draw_rotated_bitmap, and
+//! anything that uses those APIs --, but it currently does not affect the filling or stroking
+//! operations.
 void graphics_context_set_compositing_mode(GContext* ctx, GCompOp mode);
+
+//! Sets whether antialiasing is applied to stroke drawing
+//! @param ctx The graphics context onto which to set the antialiasing
+//! @param enable True = antialiasing enabled, False = antialiasing disabled
+//! @note Default value is true.
+void graphics_context_set_antialiased(GContext* ctx, bool enable);
+
+//! Sets the width of the stroke for drawing routines
+//! @param ctx The graphics context onto which to set the stroke width
+//! @param stroke_width Width in pixels of the stroke.
+//! @note If stroke width of zero is passed, it will be ignored and will not change the value
+//! stored in GContext. Currently, only odd stroke_width values are supported. If an even value
+//! is passed in, the value will be stored as is, but the drawing routines will round down to the
+//! previous integral value when drawing. Default value is 1.
+void graphics_context_set_stroke_width(GContext* ctx, uint8_t stroke_width);
 
 //! @} // group GraphicsContext
 
@@ -2751,7 +3605,7 @@ typedef enum {
 //! @param point The point at which to draw the pixel
 void graphics_draw_pixel(GContext* ctx, GPoint point);
 
-//! Draws a 1-pixel wide line in the current stroke color
+//! Draws line in the current stroke color, current stroke width and AA flag
 //! @param ctx The destination graphics context in which to draw
 //! @param p0 The starting point of the line
 //! @param p1 The ending point of the line
@@ -2760,15 +3614,17 @@ void graphics_draw_line(GContext* ctx, GPoint p0, GPoint p1);
 //! Draws a 1-pixel wide rectangle outline in the current stroke color
 //! @param ctx The destination graphics context in which to draw
 //! @param rect The rectangle for which to draw the outline
-void graphics_draw_rect(GContext* ctx, GRect rect);
+void graphics_draw_rect(GContext *ctx, GRect rect);
 
-//! Fills a retangle with the current fill color, optionally rounding all or a selection of its corners
+//! Fills a rectangle with the current fill color, optionally rounding all or a
+//! selection of its corners.
 //! @param ctx The destination graphics context in which to draw
 //! @param rect The rectangle to fill
 //! @param corner_radius The rounding radius of the corners in pixels (maximum is 8 pixels)
 //! @param corner_mask Bitmask of the corners that need to be rounded.
 //! @see \ref GCornerMask
-void graphics_fill_rect(GContext* ctx, GRect rect, uint16_t corner_radius, GCornerMask corner_mask);
+void graphics_fill_rect(GContext *ctx, GRect rect, uint16_t corner_radius,
+                                       GCornerMask corner_mask);
 
 //! Draws the outline of a circle in the current stroke color
 //! @param ctx The destination graphics context in which to draw
@@ -2786,7 +3642,7 @@ void graphics_fill_circle(GContext* ctx, GPoint p, uint16_t radius);
 //! @param ctx The destination graphics context in which to draw
 //! @param rect The rectangle defining the dimensions of the rounded rectangle to draw
 //! @param radius The corner radius in pixels
-void graphics_draw_round_rect(GContext* ctx, GRect rect, uint16_t radius);
+void graphics_draw_round_rect(GContext *ctx, GRect rect, uint16_t radius);
 
 //! Draws a bitmap into the graphics context, inside the specified rectangle
 //! @param ctx The destination graphics context in which to draw the bitmap
@@ -2799,9 +3655,13 @@ void graphics_draw_round_rect(GContext* ctx, GRect rect, uint16_t radius);
 //! directions, effectively drawing a repeating pattern.
 //! @see GBitmap
 //! @see GContext
-void graphics_draw_bitmap_in_rect(GContext* ctx, const GBitmap *bitmap, GRect rect);
+void graphics_draw_bitmap_in_rect(GContext *ctx, const GBitmap *bitmap, GRect rect);
 
-//! Captures the frame buffer for direct access.
+//! A shortcut to capture the framebuffer in the native format of the watch.
+//! @see graphics_capture_frame_buffer_format
+GBitmap* graphics_capture_frame_buffer(GContext* ctx);
+
+//! Captures the frame buffer for direct access, using the given format.
 //! Graphics functions will not affect the frame buffer while it is captured.
 //! The frame buffer is released when {@link graphics_release_frame_buffer} is called.
 //! The frame buffer must be released before the end of a layer's `.update_proc`
@@ -2809,10 +3669,21 @@ void graphics_draw_bitmap_in_rect(GContext* ctx, const GBitmap *bitmap, GRect re
 //!
 //! While the frame buffer is captured calling {@link graphics_capture_frame_buffer}
 //! will fail and return `NULL`.
+//! @note When writing to the frame buffer, you should respect the visible boundaries of a
+//! window on the screen. Use layer_get_frame(window_get_root_layer(window)).origin to obtain its
+//! position relative to the frame buffer. For example, drawing to (5, 5) in the frame buffer
+//! while the window is transitioning to the left with its origin at (-20, 0) would
+//! effectively draw that point at (25, 5) relative to the window. For this reason you should
+//! consider the window's root layer frame when calculating drawing coordinates.
 //! @see GBitmap
+//! @see GBitmapFormat
+//! @see layer_get_frame
+//! @see window_get_root_layer
 //! @param ctx The graphics context providing the frame buffer
+//! @param format The format in which the framebuffer should be captured. Supported formats
+//! are \ref GBitmapFormat1Bit and \ref GBitmapFormat8Bit.
 //! @return A pointer to the frame buffer. `NULL` if failed.
-GBitmap* graphics_capture_frame_buffer(GContext* ctx);
+GBitmap *graphics_capture_frame_buffer_format(GContext *ctx, GBitmapFormat format);
 
 //! Releases the frame buffer.
 //! Must be called before the end of a layer's `.update_proc` for the layer to be drawn properly.
@@ -2831,7 +3702,400 @@ bool graphics_release_frame_buffer(GContext* ctx, GBitmap* buffer);
 //! @return True if the frame buffer has been captured
 bool graphics_frame_buffer_is_captured(GContext* ctx);
 
+//! Draws a rotated bitmap with a memory-sensitive 2x anti-aliasing technique
+//! (using ray-finding instead of super-sampling), which is thresholded into a b/w bitmap for 1-bit
+//! and color blended for 8-bit.
+//! @note This API has performance limitations that can degrade user experience. Use sparingly.
+//! @param ctx The destination graphics context in which to draw
+//! @param src The source bitmap to draw
+//! @param src_ic Instance center (single point unaffected by rotation) relative to source bitmap
+//! @param rotation Angle of rotation. Rotation is an integer between 0 (no rotation)
+//! and TRIG_MAX_ANGLE (360 degree rotation). Use \ref DEG_TO_TRIGANGLE to easily convert degrees
+//! to the appropriate value.
+//! @param dest_ic Where to draw the instance center of the rotated bitmap in the context.
+void graphics_draw_rotated_bitmap(GContext* ctx, GBitmap *src, GPoint src_ic, int rotation, GPoint dest_ic);
+
+//! Values to specify how a given rectangle should be used to derive an oval shape.
+//! @see \ref graphics_fill_radial_internal
+//! @see \ref graphics_draw_arc_internal
+//! @see \ref gpoint_from_polar_internal
+//! @see \ref grect_centered_from_polar
+typedef enum {
+  //! Places the largest possible fully visible circle in the center of a rectangle.
+  GOvalScaleModeFitCircle,
+  //! Places the smallest possible circle in the center of a rectangle so that the rectangle is
+  //! fully inside the circle.
+  GOvalScaleModeFillCircle,
+} GOvalScaleMode;
+
+//! Draws a line arc clockwise between `angle_start` and `angle_end`, where 0° is
+//! the top of the circle. If the difference between `angle_start` and `angle_end` is greater
+//! than 360°, a full circle will be drawn.
+//! @param ctx The destination graphics context in which to draw using the current
+//!        stroke color and antialiasing setting.
+//! @param rect The reference rectangle to derive the center point and radius (see scale_mode).
+//! @param scale_mode Determines how rect will be used to derive the center point and radius.
+//! @param angle_start Radial starting angle. Use \ref DEG_TO_TRIGANGLE to easily convert degrees
+//! to the appropriate value.
+//! @param angle_end Radial finishing angle. If smaller than `angle_start`, nothing will be drawn.
+void graphics_draw_arc(GContext *ctx, GRect rect, GOvalScaleMode scale_mode,
+                       int32_t angle_start, int32_t angle_end);
+
+//! Fills a circle clockwise between `angle_start` and `angle_end`, where 0° is
+//! the top of the circle. If the difference between `angle_start` and `angle_end` is greater
+//! than 360°, a full circle will be drawn and filled. If `angle_start` is greater than
+//! `angle_end` nothing will be drawn.
+//! @note A simple example is drawing a 'Pacman' shape, with a starting angle of -225°, and
+//! ending angle of 45°. By setting `inset_thickness` to a non-zero value (such as 30) this
+//! example will produce the letter C.
+//! @param ctx The destination graphics context in which to draw using the current
+//! fill color and antialiasing setting.
+//! @param rect The reference rectangle to derive the center point and radius (see scale).
+//! @param scale_mode Determines how rect will be used to derive the center point and radius.
+//! @param inset_thickness Describes how thick in pixels the radial will be drawn towards its
+//!        center measured from the outside.
+//! @param angle_start Radial starting angle. Use \ref DEG_TO_TRIGANGLE to easily convert degrees
+//! to the appropriate value.
+//! @param angle_end Radial finishing angle. If smaller than `angle_start`, nothing will be drawn.
+void graphics_fill_radial(GContext *ctx, GRect rect, GOvalScaleMode scale_mode,
+                          uint16_t inset_thickness,
+                          int32_t angle_start, int32_t angle_end);
+
+//! Calculates a GPoint located at the angle provided on the perimeter of a circle defined by the
+//! provided GRect.
+//! @param rect The reference rectangle to derive the center point and radius (see scale_mode).
+//! @param scale_mode Determines how rect will be used to derive the center point and radius.
+//! @param angle The angle at which the point on the circle's perimeter should be calculated.
+//! Use \ref DEG_TO_TRIGANGLE to easily convert degrees to the appropriate value.
+//! @return The point on the circle's perimeter.
+GPoint gpoint_from_polar(GRect rect, GOvalScaleMode scale_mode, int32_t angle);
+
+//! Calculates a rectangle centered on the perimeter of a circle at a given angle.
+//! Use this to construct rectangles that follow the perimeter of a circle as an input for
+//! \ref graphics_fill_radial_internal or \ref graphics_draw_arc_internal,
+//! e.g. to draw circles every 30 degrees on a watchface.
+//! @param rect The reference rectangle to derive the circle's center point and radius (see
+//!        scale_mode).
+//! @param scale_mode Determines how rect will be used to derive the circle's center point and
+//!        radius.
+//! @param angle The angle at which the point on the circle's perimeter should be calculated.
+//! Use \ref DEG_TO_TRIGANGLE to easily convert degrees to the appropriate value.
+//! @param size Width and height of the desired rectangle.
+//! @return The rectangle centered on the circle's perimeter.
+GRect grect_centered_from_polar(GRect rect, GOvalScaleMode scale_mode, int32_t angle, GSize size);
+
 //! @} // group Drawing
+
+//! @addtogroup DrawCommand Draw Commands
+//! \brief Pebble Draw Commands are a way to encode arbitrary path draw and fill calls in binary
+//! format, so that vector-like graphics can be represented on the watch.
+//!
+//! These draw commands can
+//! be loaded from resources, manipulated in place and drawn to the current graphics context. Each
+//! \ref GDrawCommand can be an arbitrary path or a circle with optional fill or stroke. The stroke
+//! width and color of the stroke and fill are also encoded within the \ref GDrawCommand. Paths can
+//! can be drawn open or closed.
+//!
+//! All aspects of a draw command can be modified, except for the number of points in a path (a
+//! circle only has one point, the center).
+//!
+//! Draw commands are grouped into a \ref GDrawCommandList, which can be drawn all at once.
+//! Each individual \ref GDrawCommand can be accessed from a \ref GDrawCommandList for modification.
+//!
+//! A \ref GDrawCommandList forms the basis for \ref GDrawCommandImage and \ref GDrawCommandFrame
+//! objects. A \ref GDrawCommandImage represents a static image and can be represented by the PDC
+//! file format and can be loaded as a resource.
+//!
+//! Once you have a \ref GDrawCommandImage loaded in memory you can draw it on the screen in a
+//! \ref LayerUpdateProc with the \ref gdraw_command_image_draw().
+//!
+//! A \ref GDrawCommandFrame represents a single frame of an animated sequence, with multiple frames
+//! making up a single \ref GDrawCommandSequence, which can also be stored as a PDC and loaded as a
+//! resource.
+//!
+//! To draw a \ref GDrawCommandSequence, use the \ref gdraw_command_sequence_get_frame_by_elapsed()
+//! to obtain the current \ref GDrawCommandFrame and \ref gdraw_command_frame_draw() to draw it.
+//!
+//! Draw commands also allow access to drawing with sub-pixel precision. The points are treated as
+//! Fixed point types in the format 13.3, so that 1/8th of a pixel precision is possible. Only the
+//! points in draw commands of the type GDrawCommandTypePrecisePath will be treated as higher
+//! precision.
+//!
+//! @{
+
+//! Draw commands are the basic building block of the draw command system, encoding the type of
+//! command to draw, the stroke width and color, fill color, and points that define the path (or
+//! center of a circle
+typedef struct GDrawCommand GDrawCommand;
+
+//! Draw command frames contain a list of commands to draw for that frame and a duration,
+//! indicating the length of time for which the frame should be drawn in an animation sequence.
+//! Frames form the building blocks of a \ref GDrawCommandSequence, which consists of multiple
+//! frames.
+typedef struct GDrawCommandFrame GDrawCommandFrame;
+
+//! Draw command images contain a list of commands that can be drawn. An image can be loaded from
+//! PDC file data.
+typedef struct GDrawCommandImage GDrawCommandImage;
+
+//! Draw command lists contain a list of commands that can be iterated over and drawn all at once
+typedef struct GDrawCommandList GDrawCommandList;
+
+//! Callback for iterating over draw command list
+//! @param command current \ref GDrawCommand in iteration
+//! @param index index of the current command in the list
+//! @param context context pointer for the iteration operation
+//! @return true if the iteration should continue after this command is processed
+typedef bool (*GDrawCommandListIteratorCb)(GDrawCommand *command, uint32_t index, void *context);
+
+//! Draw command sequences allow the animation of frames over time. Each sequence has a list of
+//! frames that can be accessed by the elapsed duration of the animation (not maintained internally)
+//! or by index. Sequences can be loaded from PDC file data.
+typedef struct GDrawCommandSequence GDrawCommandSequence;
+
+typedef enum {
+  GDrawCommandTypeInvalid = 0,  //!< Invalid draw command type
+  GDrawCommandTypePath,         //!< Arbitrary path draw command type
+  GDrawCommandTypeCircle,       //!< Circle draw command type
+  GDrawCommandTypePrecisePath,  //!< Arbitrary path drawn with sub-pixel precision (1/8th precision)
+} GDrawCommandType;
+
+//! Draw a command
+//! @param ctx The destination graphics context in which to draw
+//! @param command \ref GDrawCommand to draw
+void gdraw_command_draw(GContext *ctx, GDrawCommand *command);
+
+//! Get the command type
+//! @param command \ref GDrawCommand from which to get the type
+//! @return The type of the given \ref GDrawCommand
+GDrawCommandType gdraw_command_get_type(GDrawCommand *command);
+
+//! Set the fill color of a command
+//! @param command ref DrawCommand for which to set the fill color
+//! @param fill_color \ref GColor to set for the fill
+void gdraw_command_set_fill_color(GDrawCommand *command, GColor fill_color);
+
+//! Get the fill color of a command
+//! @param command \ref GDrawCommand from which to get the fill color
+//! @return fill color of the given \ref GDrawCommand
+GColor gdraw_command_get_fill_color(GDrawCommand *command);
+
+//! Set the stroke color of a command
+//! @param command \ref GDrawCommand for which to set the stroke color
+//! @param stroke_color \ref GColor to set for the stroke
+void gdraw_command_set_stroke_color(GDrawCommand *command, GColor stroke_color);
+
+//! Get the stroke color of a command
+//! @param command \ref GDrawCommand from which to get the stroke color
+//! @return The stroke color of the given \ref GDrawCommand
+GColor gdraw_command_get_stroke_color(GDrawCommand *command);
+
+//! Set the stroke width of a command
+//! @param command \ref GDrawCommand for which to set the stroke width
+//! @param stroke_width stroke width to set for the command
+void gdraw_command_set_stroke_width(GDrawCommand *command, uint8_t stroke_width);
+
+//! Get the stroke width of a command
+//! @param command \ref GDrawCommand from which to get the stroke width
+//! @return The stroke width of the given \ref GDrawCommand
+uint8_t gdraw_command_get_stroke_width(GDrawCommand *command);
+
+//! Get the number of points in a command
+uint16_t gdraw_command_get_num_points(GDrawCommand *command);
+
+//! Set the value of the point in a command at the specified index
+//! @param command \ref GDrawCommand for which to set the value of a point
+//! @param point_idx Index of the point to set the value for
+//! @param point new point value to set
+void gdraw_command_set_point(GDrawCommand *command, uint16_t point_idx, GPoint point);
+
+//! Get the value of a point in a command from the specified index
+//! @param command \ref GDrawCommand from which to get a point
+//! @param point_idx The index to get the point for
+//! @return The point in the \ref GDrawCommand specified by point_idx
+//! @note The index \b must be less than the number of points
+GPoint gdraw_command_get_point(GDrawCommand *command, uint16_t point_idx);
+
+//! Set the radius of a circle command
+//! @note This only works for commands of type \ref GDrawCommandCircle
+//! @param command \ref GDrawCommand from which to set the circle radius
+//! @param radius The radius to set for the circle.
+void gdraw_command_set_radius(GDrawCommand *command, uint16_t radius);
+
+//! Get the radius of a circle command.
+//! @note this only works for commands of type\ref GDrawCommandCircle.
+//! @param command \ref GDrawCommand from which to get the circle radius
+//! @return The radius in pixels if command is of type \ref GDrawCommandCircle
+uint16_t gdraw_command_get_radius(GDrawCommand *command);
+
+//! Set the path of a stroke command to be open
+//! @note This only works for commands of type \ref GDrawCommandPath and
+//! \ref GDrawCommandPrecisePath
+//! @param command \ref GDrawCommand for which to set the path open status
+//! @param path_open true if path should be hidden
+void gdraw_command_set_path_open(GDrawCommand *command, bool path_open);
+
+//! Return whether a stroke command path is open
+//! @note This only works for commands of type \ref GDrawCommandPath and
+//! \ref GDrawCommandPrecisePath
+//! @param command \ref GDrawCommand from which to get the path open status
+//! @return true if the path is open
+bool gdraw_command_get_path_open(GDrawCommand *command);
+
+//! Set a command as hidden. This command will not be drawn when \ref gdraw_command_draw is called
+//! with this command
+//! @param command \ref GDrawCommand for which to set the hidden status
+//! @param hidden true if command should be hidden
+void gdraw_command_set_hidden(GDrawCommand *command, bool hidden);
+
+//! Return whether a command is hidden
+//! @param command \ref GDrawCommand from which to get the hidden status
+//! @return true if command is hidden
+bool gdraw_command_get_hidden(GDrawCommand *command);
+
+//! Draw a frame
+//! @param ctx The destination graphics context in which to draw
+//! @param sequence The sequence from which the frame comes from (this is required)
+//! @param frame Frame to draw
+//! @param offset Offset from draw context origin to draw the frame
+void gdraw_command_frame_draw(GContext *ctx, GDrawCommandSequence *sequence,
+                              GDrawCommandFrame *frame, GPoint offset);
+
+//! Set the duration of the frame
+//! @param frame \ref GDrawCommandFrame for which to set the duration
+//! @param duration duration of the frame in milliseconds
+void gdraw_command_frame_set_duration(GDrawCommandFrame *frame, uint32_t duration);
+
+//! Get the duration of the frame
+//! @param frame \ref GDrawCommandFrame from which to get the duration
+//! @return duration of the frame in milliseconds
+uint32_t gdraw_command_frame_get_duration(GDrawCommandFrame *frame);
+
+//! Creates a GDrawCommandImage from the specified resource (PDC file)
+//! @param resource_id Resource containing data to load and create GDrawCommandImage from.
+//! @return GDrawCommandImage pointer if the resource was loaded, NULL otherwise
+GDrawCommandImage *gdraw_command_image_create_with_resource(uint32_t resource_id);
+
+//! Creates a GDrawCommandImage as a copy from a given image
+//! @param image Image to copy.
+//! @return cloned image or NULL if the operation failed
+GDrawCommandImage *gdraw_command_image_clone(GDrawCommandImage *image);
+
+//! Deletes the GDrawCommandImage structure and frees associated data
+//! @param image Pointer to the image to free (delete)
+void gdraw_command_image_destroy(GDrawCommandImage *image);
+
+//! Draw an image
+//! @param ctx The destination graphics context in which to draw
+//! @param image Image to draw
+//! @param offset Offset from draw context origin to draw the image
+void gdraw_command_image_draw(GContext *ctx, GDrawCommandImage *image, GPoint offset);
+
+//! Get size of the bounding box surrounding all draw commands in the image. This bounding
+//! box can be used to set the graphics context or layer bounds when drawing the image.
+//! @param image \ref GDrawCommandImage from which to get the bounding box size
+//! @return bounding box size
+GSize gdraw_command_image_get_bounds_size(GDrawCommandImage *image);
+
+//! Set size of the bounding box surrounding all draw commands in the image. This bounding
+//! box can be used to set the graphics context or layer bounds when drawing the image.
+//! @param image \ref GDrawCommandImage for which to set the bounding box size
+//! @param size bounding box size
+void gdraw_command_image_set_bounds_size(GDrawCommandImage *image, GSize size);
+
+//! Get the command list of the image
+//! @param image \ref GDrawCommandImage from which to get the command list
+//! @return command list
+GDrawCommandList *gdraw_command_image_get_command_list(GDrawCommandImage *image);
+
+//! Iterate over all commands in a command list
+//! @param command_list \ref GDrawCommandList over which to iterate
+//! @param handle_command iterator callback
+//! @param callback_context context pointer to be passed into the iterator callback
+void gdraw_command_list_iterate(GDrawCommandList *command_list,
+                                GDrawCommandListIteratorCb handle_command, void *callback_context);
+
+//! Draw all commands in a command list
+//! @param ctx The destination graphics context in which to draw
+//! @param command_list list of commands to draw
+void gdraw_command_list_draw(GContext *ctx, GDrawCommandList *command_list);
+
+//! Get the command at the specified index
+//! @note the specified index must be less than the number of commands in the list
+//! @param command_list \ref GDrawCommandList from which to get a command
+//! @param command_idx index of the command to get
+//! @return pointer to \ref GDrawCommand at the specified index
+GDrawCommand *gdraw_command_list_get_command(GDrawCommandList *command_list, uint16_t command_idx);
+
+//! Get the number of commands in the list
+//! @param command_list \ref GDrawCommandList from which to get the number of commands
+//! @return number of commands in command list
+uint32_t gdraw_command_list_get_num_commands(GDrawCommandList *command_list);
+
+//! Creates a \ref GDrawCommandSequence from the specified resource (PDC file)
+//! @param resource_id Resource containing data to load and create GDrawCommandSequence from.
+//! @return GDrawCommandSequence pointer if the resource was loaded, NULL otherwise
+GDrawCommandSequence *gdraw_command_sequence_create_with_resource(uint32_t resource_id);
+
+//! Creates a \ref GDrawCommandSequence as a copy from a given sequence
+//! @param sequence Sequence to copy
+//! @return cloned sequence or NULL if the operation failed
+GDrawCommandSequence *gdraw_command_sequence_clone(GDrawCommandSequence *sequence);
+
+//! Deletes the \ref GDrawCommandSequence structure and frees associated data
+//! @param image Pointer to the sequence to destroy
+void gdraw_command_sequence_destroy(GDrawCommandSequence *sequence);
+
+//! Get the frame that should be shown after the specified amount of elapsed time
+//! The last frame will be returned if the elapsed time exceeds the total time
+//! @param sequence \ref GDrawCommandSequence from which to get the frame
+//! @param elapsed_ms elapsed time in milliseconds
+//! @return pointer to \ref GDrawCommandFrame that should be displayed at the elapsed time
+GDrawCommandFrame *gdraw_command_sequence_get_frame_by_elapsed(GDrawCommandSequence *sequence,
+                                                               uint32_t elapsed_ms);
+
+//! Get the frame at the specified index
+//! @param sequence \ref GDrawCommandSequence from which to get the frame
+//! @param index Index of frame to get
+//! @return pointer to \ref GDrawCommandFrame at the specified index
+GDrawCommandFrame *gdraw_command_sequence_get_frame_by_index(GDrawCommandSequence *sequence,
+                                                             uint32_t index);
+
+//! Get the size of the bounding box surrounding all draw commands in the sequence. This bounding
+//! box can be used to set the graphics context or layer bounds when drawing the frames in the
+//! sequence.
+//! @param sequence \ref GDrawCommandSequence from which to get the bounds
+//! @return bounding box size
+GSize gdraw_command_sequence_get_bounds_size(GDrawCommandSequence *sequence);
+
+//! Set size of the bounding box surrounding all draw commands in the sequence. This bounding
+//! box can be used to set the graphics context or layer bounds when drawing the frames in the
+//! sequence.
+//! @param sequence \ref GDrawCommandSequence for which to set the bounds
+//! @param size bounding box size
+void gdraw_command_sequence_set_bounds_size(GDrawCommandSequence *sequence, GSize size);
+
+//! Get the play count of the sequence
+//! @param sequence \ref GDrawCommandSequence from which to get the play count
+//! @return play count of sequence
+uint32_t gdraw_command_sequence_get_play_count(GDrawCommandSequence *sequence);
+
+//! Set the play count of the sequence
+//! @param sequence \ref GDrawCommandSequence for which to set the play count
+//! @param play_count play count
+void gdraw_command_sequence_set_play_count(GDrawCommandSequence *sequence, uint32_t play_count);
+
+//! Get the total duration of the sequence.
+//! @param sequence \ref GDrawCommandSequence from which to get the total duration
+//! @return total duration of the sequence in milliseconds
+uint32_t gdraw_command_sequence_get_total_duration(GDrawCommandSequence *sequence);
+
+//! Get the number of frames in the sequence
+//! @param sequence \ref GDrawCommandSequence from which to get the number of frames
+//! @return number of frames in the sequence
+uint32_t gdraw_command_sequence_get_num_frames(GDrawCommandSequence *sequence);
+
+//! @} // group DrawCommand
 
 //! @addtogroup PathDrawing Drawing Paths
 //! \brief Functions to draw polygons into a graphics context
@@ -2914,11 +4178,13 @@ void gpath_destroy(GPath* gpath);
 //! @see \ref graphics_context_set_fill_color()
 void gpath_draw_filled(GContext* ctx, GPath *path);
 
-//! Draws the outline of a path into a graphics context, using the current stroke color,
-//! relative to the drawing area as set up by the layering system.
+//! Draws the outline of a path into a graphics context, using the current stroke color and
+//! width, relative to the drawing area as set up by the layering system. The first and last points
+//! in the path do have a line between them.
 //! @param ctx The graphics context to draw into
-//! @param path The path to fill
+//! @param path The path to draw
 //! @see \ref graphics_context_set_stroke_color()
+//! @see \ref gpath_draw_outline_open()
 void gpath_draw_outline(GContext* ctx, GPath *path);
 
 //! Sets the absolute rotation of the path.
@@ -2940,6 +4206,15 @@ void gpath_rotate_to(GPath *path, int32_t angle);
 //! \ref gpath_draw_outline().
 void gpath_move_to(GPath *path, GPoint point);
 
+//! Draws an open outline of a path into a graphics context, using the current stroke color and
+//! width, relative to the drawing area as set up by the layering system. The first and last points
+//! in the path do not have a line between them.
+//! @param ctx The graphics context to draw into
+//! @param path The path to draw
+//! @see \ref graphics_context_set_stroke_color()
+//! @see \ref gpath_draw_outline()
+void gpath_draw_outline_open(GContext* ctx, GPath* path);
+
 //! @} // group PathDrawing
 
 //! @addtogroup Fonts
@@ -2949,11 +4224,14 @@ void gpath_move_to(GPath *path, GPoint point);
 //! @see \ref graphics_draw_text
 //! @{
 
+struct FontInfo;
+typedef struct FontInfo FontInfo;
+
 //! Pointer to opaque font data structure.
 //! @see \ref fonts_load_custom_font()
 //! @see \ref text_layer_set_font()
 //! @see \ref graphics_draw_text()
-typedef void* GFont;
+typedef FontInfo* GFont;
 
 //! Loads a system font corresponding to the specified font key.
 //! @param font_key The string key of the font to load. See `pebble_fonts.h` for a list of system fonts.
@@ -2963,11 +4241,12 @@ typedef void* GFont;
 GFont fonts_get_system_font(const char *font_key);
 
 //! Loads a custom font.
-//! @param resource The resource handle of the font to load. See resource_ids.auto.h
+//! @param handle The resource handle of the font to load. See resource_ids.auto.h
 //! for a list of resource IDs, and use \ref resource_get_handle() to obtain the resource handle.
 //! @return An opaque pointer to the loaded font, or a pointer to the default
 //! (fallback) font if the specified font cannot be loaded.
-//! @see \htmlinclude UsingResources.html on how to embed a font into your app.
+//! @see Read the <a href="http://developer.getpebble.com/guides/pebble-apps/resources/">App
+//! Resources</a> guide on how to embed a font into your app.
 //! @note this may load a font from the flash peripheral into RAM.
 GFont fonts_load_custom_font(ResHandle handle);
 
@@ -2996,11 +4275,15 @@ void fonts_unload_custom_font(GFont font);
 //! @see graphics_draw_text
 //! @see text_layer_set_overflow_mode
 typedef enum {
-  //! On overflow, wrap words to a new line below the current one. Once vertical space is consumed, the last line may be clipped.
+  //! On overflow, wrap words to a new line below the current one. Once vertical space is consumed,
+  //! the last line may be clipped.
   GTextOverflowModeWordWrap,
-  //! On overflow, wrap words to a new line below the current one. Once vertical space is consumed, truncate as needed to fit a trailing ellipsis (...). Clipping may occur if the vertical space cannot accomodate the first line of text.
+  //! On overflow, wrap words to a new line below the current one.
+  //! Once vertical space is consumed, truncate as needed to fit a trailing ellipsis (...).
+  //! Clipping may occur if the vertical space cannot accomodate the first line of text.
   GTextOverflowModeTrailingEllipsis,
-  //! Acts like \ref GTextOverflowModeTrailingEllipsis, plus trims leading and trailing newlines, while treating all other newlines as spaces.
+  //! Acts like \ref GTextOverflowModeTrailingEllipsis, plus trims leading and trailing newlines,
+  //! while treating all other newlines as spaces.
   GTextOverflowModeFill
 } GTextOverflowMode;
 
@@ -3016,11 +4299,52 @@ typedef enum {
   GTextAlignmentRight,
 } GTextAlignment;
 
-struct TextLayout;
-typedef struct TextLayout TextLayout;
+struct GTextAttributes;
+typedef struct GTextAttributes GTextAttributes;
 
-//! Pointer to opaque text layout cache data structure
-typedef TextLayout* GTextLayoutCacheRef;
+//! Creates an instance of GTextAttributes for advanced control when rendering text.
+//! @return New instance of GTextAttributes
+//! @see \ref graphics_draw_text
+GTextAttributes *graphics_text_attributes_create(void);
+
+//! Destroys a previously created instance of GTextAttributes
+void graphics_text_attributes_destroy(GTextAttributes *text_attributes);
+
+//! Restores text flow to the rectangular default.
+//! @param text_attributes The attributes for which to disable text flow
+//! @see graphics_text_attributes_enable_screen_text_flow
+//! @see text_layer_restore_default_text_flow_and_paging
+void graphics_text_attributes_restore_default_text_flow(GTextAttributes *text_attributes);
+
+//! Enables text flow that follows the boundaries of the screen.
+//! @param text_attributes The attributes for which text flow should be enabled
+//! @param inset Additional amount of pixels to inset to the inside of the screen for text flow
+//! calculation. Can be zero.
+//! @see graphics_text_attributes_restore_default_text_flow
+//! @see text_layer_enable_screen_text_flow_and_paging
+void graphics_text_attributes_enable_screen_text_flow(GTextAttributes *text_attributes,
+                                                      uint8_t inset);
+
+//! Restores paging and locked content origin to the defaults.
+//! @param text_attributes The attributes for which to restore paging and locked content origin
+//! @see graphics_text_attributes_enable_paging
+//! @see text_layer_restore_default_text_flow_and_paging
+void graphics_text_attributes_restore_default_paging(GTextAttributes *text_attributes);
+
+//! Enables paging and locks the text flow calculation to a fixed point on the screen.
+//! @param text_attributes Attributes for which to enable paging and locked content origin
+//! @param content_origin_on_screen Absolute coordinate on the screen where the text content
+//!     starts before an animation or scrolling takes place. Usually the frame's origin of a layer
+//!     in screen coordinates.
+//! @param paging_on_screen Rectangle in absolute coordinates on the screen that describes where
+//!     text content pages. Usually the container's absolute frame in screen coordinates.
+//! @see graphics_text_attributes_restore_default_paging
+//! @see graphics_text_attributes_enable_screen_text_flow
+//! @see text_layer_enable_screen_text_flow_and_paging
+//! @see layer_convert_point_to_screen
+void graphics_text_attributes_enable_paging(GTextAttributes *text_attributes,
+                                            GPoint content_origin_on_screen,
+                                            GRect paging_on_screen);
 
 //! Draw text into the current graphics context, using the context's current text color.
 //! The text will be drawn inside a box with the specified dimensions and
@@ -3028,24 +4352,220 @@ typedef TextLayout* GTextLayoutCacheRef;
 //! @param ctx The destination graphics context in which to draw
 //! @param text The zero terminated UTF-8 string to draw
 //! @param font The font in which the text should be set
-//! @param box The bounding box in which to draw the text. The first line of text will be drawn against the top of the box.
-//! @param overflow_mode The overflow behavior, in case the text is larger than what fits inside the box.
+//! @param box The bounding box in which to draw the text. The first line of text will be drawn
+//! against the top of the box.
+//! @param overflow_mode The overflow behavior, in case the text is larger than what fits inside
+//! the box.
 //! @param alignment The horizontal alignment of the text
-//! @param layout Optional layout cache data. Supply `NULL` to ignore the layout caching mechanism.
-void graphics_draw_text(GContext* ctx, const char* text, GFont const font, const GRect box, const GTextOverflowMode overflow_mode, const GTextAlignment alignment, const GTextLayoutCacheRef layout);
+//! @param text_attributes Optional text attributes to describe the characteristics of the text
+void graphics_draw_text(GContext *ctx, const char *text, GFont const font, const GRect box,
+                        const GTextOverflowMode overflow_mode, const GTextAlignment alignment,
+                        GTextAttributes *text_attributes);
 
-//! Obtain the maximum size that a text with given font, overflow mode and alignment occupies within a given rectangular constraint.
+//! Obtain the maximum size that a text with given font, overflow mode and alignment occupies
+//! within a given rectangular constraint.
 //! @param text The zero terminated UTF-8 string for which to calculate the size
 //! @param font The font in which the text should be set while calculating the size
 //! @param box The bounding box in which the text should be constrained
-//! @param overflow_mode The overflow behavior, in case the text is larger than what fits inside the box.
+//! @param overflow_mode The overflow behavior, in case the text is larger than what fits
+//! inside the box.
 //! @param alignment The horizontal alignment of the text
 //! @return The maximum size occupied by the text
-GSize graphics_text_layout_get_content_size(const char* text, GFont const font, const GRect box, const GTextOverflowMode overflow_mode, const GTextAlignment alignment);
+//! @see app_graphics_text_layout_get_content_size_with_attributes
+GSize graphics_text_layout_get_content_size(const char *text, GFont const font, const GRect box,
+                                                const GTextOverflowMode overflow_mode,
+                                                const GTextAlignment alignment);
+
+//! Obtain the maximum size that a text with given font, overflow mode and alignment occupies
+//! within a given rectangular constraint.
+//! @param text The zero terminated UTF-8 string for which to calculate the size
+//! @param font The font in which the text should be set while calculating the size
+//! @param box The bounding box in which the text should be constrained
+//! @param overflow_mode The overflow behavior, in case the text is larger than what fits
+//! inside the box.
+//! @param alignment The horizontal alignment of the text
+//! @param text_attributes Optional text attributes to describe the characteristics of the text
+//! @return The maximum size occupied by the text
+//! @see app_graphics_text_layout_get_content_size
+GSize graphics_text_layout_get_content_size_with_attributes(
+  const char *text, GFont const font, const GRect box, const GTextOverflowMode overflow_mode,
+  const GTextAlignment alignment, GTextAttributes *text_attributes);
 
 //! @} // group TextDrawing
 
 //! @} // group Graphics
+
+//! @addtogroup Smartstrap
+//! @{
+
+//! The default request timeout in milliseconds (see \ref smartstrap_set_timeout).
+#define SMARTSTRAP_TIMEOUT_DEFAULT 250
+
+//! The service_id to specify in order to read/write raw data to the smartstrap.
+#define SMARTSTRAP_RAW_DATA_SERVICE_ID 0
+
+//! The attribute_id to specify in order to read/write raw data to the smartstrap.
+#define SMARTSTRAP_RAW_DATA_ATTRIBUTE_ID 0
+
+//! Convenience macro to switch between two expressions depending on smartstrap support.
+//! On platforms with a smartstrap the first expression will be chosen, the second otherwise.
+#define PBL_IF_SMARTSTRAP_ELSE(if_true, if_false) (if_false)
+
+//! Error values which may be returned from the smartstrap APIs.
+typedef enum {
+  //! No error occured.
+  SmartstrapResultOk = 0,
+  //! Invalid function arguments were supplied.
+  SmartstrapResultInvalidArgs,
+  //! The smartstrap port is not present on this watch.
+  SmartstrapResultNotPresent,
+  //! A request is already pending on the specified attribute.
+  SmartstrapResultBusy,
+  //! Either a smartstrap is not connected or the connected smartstrap does not support the
+  //! specified service.
+  SmartstrapResultServiceUnavailable,
+  //! The smartstrap reported that it does not support the requested attribute.
+  SmartstrapResultAttributeUnsupported,
+  //! A time-out occured during the request.
+  SmartstrapResultTimeOut,
+} SmartstrapResult;
+
+//! A type representing a smartstrap ServiceId.
+typedef uint16_t SmartstrapServiceId;
+
+//! A type representing a smartstrap AttributeId.
+typedef uint16_t SmartstrapAttributeId;
+
+//! A type representing an attribute of a service provided by a smartstrap. This type is used when
+//! issuing requests to the smartstrap.
+typedef struct SmartstrapAttribute SmartstrapAttribute;
+
+//! The type of function which is called after the smartstrap connection status changes.
+//! @param service_id The ServiceId for which the availability changed.
+//! @param is_available Whether or not this service is now available.
+typedef void (*SmartstrapServiceAvailabilityHandler)(SmartstrapServiceId service_id,
+                                                     bool is_available);
+
+//! The type of function which can be called when a read request is completed.
+//! @note Any write request made to the same attribute within this function will fail with
+//! SmartstrapResultBusy.
+//! @param attribute The attribute which was read.
+//! @param result The result of the read.
+//! @param data The data read from the smartstrap or NULL if the read was not successful.
+//! @param length The length of the data or 0 if the read was not successful.
+typedef void (*SmartstrapReadHandler)(SmartstrapAttribute *attribute, SmartstrapResult result,
+                                      const uint8_t *data, size_t length);
+
+//! The type of function which can be called when a write request is completed.
+//! @param attribute The attribute which was written.
+//! @param result The result of the write.
+typedef void (*SmartstrapWriteHandler)(SmartstrapAttribute *attribute, SmartstrapResult result);
+
+//! The type of function which can be called when the smartstrap sends a notification to the watch
+//! @param attribute The attribute which the notification came from.
+typedef void (*SmartstrapNotifyHandler)(SmartstrapAttribute *attribute);
+
+//! Handlers which are passed to smartstrap_subscribe.
+typedef struct {
+  //! The connection handler is called after the connection state changes.
+  SmartstrapServiceAvailabilityHandler availability_did_change;
+  //! The read handler is called whenever a read is complete or the read times-out.
+  SmartstrapReadHandler did_read;
+  //! The did_write handler is called when a write has completed.
+  SmartstrapWriteHandler did_write;
+  //! The notified handler is called whenever a notification is received for an attribute.
+  SmartstrapNotifyHandler notified;
+} SmartstrapHandlers;
+
+//! Subscribes handlers to be called after certain smartstrap events occur.
+//! @note Registering an availability_did_change handler will cause power to be applied to the
+//! smartstrap port and connection establishment to begin.
+//! @see smartstrap_unsubscribe
+//! @returns `SmartstrapResultNotPresent` if the watch does not have a smartstrap port or
+//! `SmartstrapResultOk` otherwise.
+SmartstrapResult smartstrap_subscribe(SmartstrapHandlers handlers);
+
+//! Unsubscribes the handlers. The handlers will no longer be called, but in-flight requests will
+//! otherwise be unaffected.
+//! @note If power was being applied to the smartstrap port and there are no attributes have been
+//! created (or they have all been destroyed), this will cause the smartstrap power to be turned
+//! off.
+void smartstrap_unsubscribe(void);
+
+//! Changes the value of the timeout which is used for smartstrap requests. This timeout is started
+//! after the request is completely sent to the smartstrap and will be canceled only if the entire
+//! response is received before it triggers. The new timeout value will take affect only for
+//! requests made after this API is called.
+//! @note The maximum allowed timeout is currently 1000ms. If a larger value is passed, it will be
+//! internally lowered to the maximum.
+//! @see SMARTSTRAP_TIMEOUT_DEFAULT
+void smartstrap_set_timeout(uint16_t timeout_ms);
+
+//! Creates and returns a SmartstrapAttribute for the specified service and attribute. This API
+//! will allocate an internal buffer of the requested length on the app's heap.
+//! @note Creating an attribute will result in power being applied to the smartstrap port (if it
+//! isn't already) and connection establishment to begin.
+//! @param service_id The ServiceId to create the attribute for.
+//! @param attribute_id The AttributeId to create the attribute for.
+//! @param buffer_length The length of the internal buffer which will be used to store the read
+//! and write requests for this attribute.
+//! @returns The newly created SmartstrapAttribute or NULL if an internal error occured or if the
+//! specified length is greater than SMARTSTRAP_ATTRIBUTE_LENGTH_MAXIMUM.
+SmartstrapAttribute *smartstrap_attribute_create(SmartstrapServiceId service_id,
+                                                     SmartstrapAttributeId attribute_id,
+                                                     size_t buffer_length);
+
+//! Destroys a SmartstrapAttribute. No further handlers will be called for this attribute and it
+//! may not be used for any future requests.
+//! @param[in] attribute The SmartstrapAttribute which should be destroyed.
+//! @note If power was being applied to the smartstrap port, no availability_did_change handler is
+//! subscribed, and the last attribute is being destroyed, this will cause the smartstrap power to
+//! be turned off.
+void smartstrap_attribute_destroy(SmartstrapAttribute *attribute);
+
+//! Checks whether or not the specified service is currently supported by a connected smartstrap.
+//! @returns Whether or not the service is available.
+bool smartstrap_service_is_available(SmartstrapServiceId service_id);
+
+//! Returns the ServiceId which the attribute was created for (see \ref
+//! smartstrap_attribute_create).
+//! @returns The SmartstrapServiceId which the attribute was created with.
+SmartstrapServiceId smartstrap_attribute_get_service_id(SmartstrapAttribute *attribute);
+
+//! Gets the AttributeId which the attribute was created for (see \ref smartstrap_attribute_create).
+//! @returns The SmartstrapAttributeId which the attribute was created with.
+SmartstrapAttributeId smartstrap_attribute_get_attribute_id(SmartstrapAttribute *attribute);
+
+//! Performs a read request for the specified attribute. The `did_read` callback will be called when
+//! the response is received from the smartstrap or when an error occurs.
+//! @param attribute The attribute to be perform the read request on.
+//! @returns `SmartstrapResultOk` if the read operation was started. The `did_read` callback will
+//! be called once the read request has been completed.
+SmartstrapResult smartstrap_attribute_read(SmartstrapAttribute *attribute);
+
+//! Begins a write request for the specified attribute and returns a buffer into which the app
+//! should write the data before calling smartstrap_attribute_end_write.
+//! @note The buffer must not be used after smartstrap_attribute_end_write is called.
+//! @param[in] attribute The attribute to begin writing for.
+//! @param[out] buffer The buffer to write the data into.
+//! @param[out] buffer_length The length of the buffer in bytes.
+//! @returns `SmartstrapResultOk` if a write operation was started and the `buffer` and
+//! `buffer_length` parameters were set, or an error otherwise.
+SmartstrapResult smartstrap_attribute_begin_write(SmartstrapAttribute *attribute,
+                                                      uint8_t **buffer, size_t *buffer_length);
+
+//! This should be called by the app when it is done writing to the buffer provided by
+//! smartstrap_begin_write and the data is ready to be sent to the smartstrap.
+//! @param[in] attribute The attribute to begin writing for.
+//! @param do_read Whether or not a read request on this attribute should be automatically triggered
+//! following a successful write request.
+//! @returns `SmartstrapResultOk` if a write operation was queued to be sent to the smartstrap. The
+//! `did_write` handler will be called when the request is written to the smartstrap, and if
+//! `request_read` was set to true, the `did_read` handler will be called when the read is complete.
+SmartstrapResult smartstrap_attribute_end_write(SmartstrapAttribute *attribute,
+                                                    size_t write_length, bool request_read);
+
+//! @} // group Smartstrap
 
 //! @addtogroup UI
 //! @{
@@ -3096,7 +4616,7 @@ ButtonId click_recognizer_get_button_id(ClickRecognizerRef recognizer);
 
 //! Is this a repeating click.
 //! You can use this inside a click handler implementation to find out whether this is a repeating click or not.
-//! @param recognizer The click recognizer for which to find out wheter this is a repeating click.
+//! @param recognizer The click recognizer for which to find out whether this is a repeating click.
 //! @return true if this is a repeating click.
 bool click_recognizer_is_repeating(ClickRecognizerRef recognizer);
 
@@ -3233,6 +4753,20 @@ void layer_set_bounds(Layer *layer, GRect bounds);
 //! @see layer_set_bounds
 GRect layer_get_bounds(const Layer *layer);
 
+//! Converts a point from the layer's local coordinate system to screen coordinates.
+//! @note If the layer isn't part of the view hierarchy the result is undefined.
+//! @param layer The view whose coordinate system will be used to convert the value to the screen.
+//! @param point A point specified in the local coordinate system (bounds) of the layer.
+//! @return The point converted to the coordinate system of the screen.
+GPoint layer_convert_point_to_screen(const Layer *layer, GPoint point);
+
+//! Converts a rectangle from the layer's local coordinate system to screen coordinates.
+//! @note If the layer isn't part of the view hierarchy the result is undefined.
+//! @param layer The view whose coordinate system will be used to convert the value to the screen.
+//! @param rect A rectangle specified in the local coordinate system (bounds) of the layer.
+//! @return The rectangle converted to the coordinate system of the screen.
+GRect layer_convert_rect_to_screen(const Layer *layer, GRect rect);
+
 //! Gets the window that the layer is currently attached to.
 //! @param layer The layer for which to get the window
 //! @return The window that this layer is currently attached to, or `NULL` if it has
@@ -3264,7 +4798,8 @@ void layer_remove_child_layers(Layer *parent);
 //! @param child The layer to add to the parent layer
 void layer_add_child(Layer *parent, Layer *child);
 
-//! Inserts the layer as a sibling behind another layer.
+//! Inserts the layer as a sibling behind another layer. If the layer to insert was
+//! already part of a layer hierarchy, it will be removed from its old parent first.
 //! The below_layer has to be a child of a parent layer,
 //! otherwise this function will be a noop.
 //! If inserted successfully, the parent (and children) will be marked dirty
@@ -3355,26 +4890,28 @@ typedef struct Window Window;
 typedef void (*WindowHandler)(struct Window *window);
 
 //! WindowHandlers
-//! These handlers are called by the \ref WindowStack as windows get pushed on / popped:
-//! * `load`:     called when the window is pushed to the screen when it's not loaded.
-//!              This is a good moment to do the layout of the window.
-//! * `appear`:   called when the window comes on the screen (again). E.g. when
-//!               second-top-most window gets revealed (again) after popping the top-most
-//!               window, but also when the window is pushed for the first time. This is a
-//!               good moment to start timers related to the window, or reset the UI, etc.
-//! * `disappear`:called when the window leaves the screen, e.g. when another window
-//!               is pushed, or this window is popped. Good moment to stop timers related
-//!               to the window.
-//! * `unload`:   called when the window is deinited, but could be used in the future to
-//!               free resources bound to windows that are not on screen.
-//!
+//! These handlers are called by the \ref WindowStack as windows get pushed on / popped.
 //! All these handlers use \ref WindowHandler as their function signature.
 //! @see \ref window_set_window_handlers()
 //! @see \ref WindowStack
 typedef struct WindowHandlers {
+  //! Called when the window is pushed to the screen when it's not loaded.
+  //! This is a good moment to do the layout of the window.
   WindowHandler load;
+
+  //! Called when the window comes on the screen (again). E.g. when
+  //! second-top-most window gets revealed (again) after popping the top-most
+  //! window, but also when the window is pushed for the first time. This is a
+  //! good moment to start timers related to the window, or reset the UI, etc.
   WindowHandler appear;
+
+  //! Called when the window leaves the screen, e.g. when another window
+  //! is pushed, or this window is popped. Good moment to stop timers related
+  //! to the window.
   WindowHandler disappear;
+
+  //! Called when the window is deinited, but could be used in the future to
+  //! free resources bound to windows that are not on screen.
   WindowHandler unload;
 } WindowHandlers;
 
@@ -3382,10 +4919,8 @@ typedef struct WindowHandlers {
 //!
 //! * Background color : `GColorWhite`
 //! * Root layer's `update_proc` : function that fills the window's background using `background_color`.
-//! * Full screen : no
 //! * `click_config_provider` : `NULL`
 //! * `window_handlers` : all `NULL`
-//! * `status_bar_icon` : `NULL` (none)
 //! @return A pointer to the window. `NULL` if the window could not
 //! be created
 Window* window_create(void);
@@ -3440,25 +4975,6 @@ struct Layer* window_get_root_layer(const Window *window);
 //! @param background_color The new background color
 //! @see \ref window_get_root_layer()
 void window_set_background_color(Window *window, GColor background_color);
-
-//! Sets whether or not the window is fullscreen, consequently hiding the sytem status bar.
-//! @note This needs to be called before pushing a window to the window stack.
-//! @param window The window for which to set its full-screen property
-//! @param enabled True to make the window full-screen or false to leave space for the system status bar.
-//! @see \ref window_get_fullscreen()
-void window_set_fullscreen(Window *window, bool enabled);
-
-//! Gets whether the window is full-screen, consequently hiding the sytem status bar.
-//! @param window The window for which to get its full-screen property
-//! @return True if the window is marked as fullscreen, false if it is not marked as fullscreen.
-bool window_get_fullscreen(const Window *window);
-
-//! Assigns an icon (max. 16x16 pixels) that can be displayed in the system status bar.
-//! When no icon is assigned, the icon of the previous window on the window stack is used.
-//! @note This needs to be called before pushing a window to the window stack.
-//! @param window The window for which to set the status bar icon
-//! @param icon The new status bar icon
-void window_set_status_bar_icon(Window *window, const GBitmap *icon);
 
 //! Gets whether the window has been loaded.
 //! If a window is loaded, its `.load` handler has been called (and the `.unload` handler
@@ -3622,6 +5138,10 @@ bool window_stack_contains_window(Window *window);
 struct Animation;
 typedef struct Animation Animation;
 
+//! The type used to represent how far an animation has progressed. This is passed to the
+//! animation's update handler
+typedef int32_t AnimationProgress;
+
 //! Values that are used to indicate the different animation curves,
 //! which determine the speed at which the animated value(s) change(s).
 typedef enum {
@@ -3633,12 +5153,14 @@ typedef enum {
   AnimationCurveEaseOut = 2,
   //! Bicubic ease-in-out: accelerate from zero velocity, decelerate to zero velocity
   AnimationCurveEaseInOut = 3,
+  AnimationCurveDefault = AnimationCurveEaseInOut,
   //! Custom (user-provided) animation curve
   AnimationCurveCustomFunction = 4,
-  //! Reserved for forward-compatibility use.
-  AnimationCurve_Reserved1 = 5,
-  AnimationCurve_Reserved2 = 6,
-  AnimationCurve_Reserved3 = 7
+  //! User-provided interpolation function
+  AnimationCurveCustomInterpolationFunction = 5,
+  // Two more Reserved for forward-compatibility use.
+  AnimationCurve_Reserved1 = 6,
+  AnimationCurve_Reserved2 = 7,
 } AnimationCurve;
 
 //! Creates a new Animation on the heap and initalizes it with the default values.
@@ -3652,19 +5174,25 @@ typedef enum {
 //! * Scheduled: no
 //! @return A pointer to the animation. `NULL` if the animation could not
 //! be created
-struct Animation * animation_create(void);
+Animation * animation_create(void);
 
 //! Destroys an Animation previously created by animation_create.
-void animation_destroy(struct Animation *animation);
+//! @return true if successful, false on failure
+bool animation_destroy(Animation *animation);
 
 //! Constant to indicate "infinite" duration.
 //! This can be used with \ref animation_set_duration() to indicate that the animation
-//! should run indefinitely.
-//! This is useful when implementing for example a frame-by-frame simulation that does not
-//! have a clear ending (e.g. a game).
+//! should run indefinitely. This is useful when implementing for example a frame-by-frame
+//! simulation that does not have a clear ending (e.g. a game).
 //! @note Note that `distance_normalized` parameter that is passed
 //! into the `.update` implementation is meaningless in when an infinite duration is used.
-#define ANIMATION_DURATION_INFINITE ((uint32_t) ~0)
+//! @note This can be returned by animation_get_duration (if the play count is infinite)
+#define ANIMATION_DURATION_INFINITE UINT32_MAX
+
+//! Constant to indicate infinite play count.
+//! Can be passed to \ref animation_set_play_count() to repeat indefinitely.
+//! @note This can be returned by \ref animation_get_play_count().
+#define ANIMATION_PLAY_COUNT_INFINITE UINT32_MAX
 
 //! The normalized distance at the start of the animation.
 #define ANIMATION_NORMALIZED_MIN 0
@@ -3672,50 +5200,180 @@ void animation_destroy(struct Animation *animation);
 //! The normalized distance at the end of the animation.
 #define ANIMATION_NORMALIZED_MAX 65535
 
+Animation *animation_clone(Animation *from);
+
+//! Create a new sequence animation from a list of 2 or more other animations. The returned
+//! animation owns the animations that were provided as arguments and no further write operations
+//! on those handles are allowed. The variable length argument list must be terminated with a NULL
+//! ptr
+//! @note the maximum number of animations that can be supplied to this method is 20
+//! @param animation_a the first required component animation
+//! @param animation_b the second required component animation
+//! @param animation_c either the third component, or NULL if only adding 2 components
+//! @return The newly created sequence animation
+Animation *animation_sequence_create(Animation *animation_a, Animation *animation_b,
+                                     Animation *animation_c, ...);
+
+//! An alternate form of animation_sequence_create() that accepts an array of other animations.
+//! @note the maximum number of elements allowed in animation_array is 256
+//! @param animation_array an array of component animations to include
+//! @param array_len the number of elements in the animation_array
+//! @return The newly created sequence animation
+Animation *animation_sequence_create_from_array(Animation **animation_array, uint32_t array_len);
+
+//! Create a new spawn animation from a list of 2 or more other animations. The returned
+//! animation owns the animations that were provided as arguments and no further write operations
+//! on those handles are allowed. The variable length argument list must be terminated with a NULL
+//! ptr
+//! @note the maximum number of animations that can be supplied to this method is 20
+//! @param animation_a the first required component animation
+//! @param animation_b the second required component animation
+//! @param animation_c either the third component, or NULL if only adding 2 components
+//! @return The newly created spawn animation or NULL on failure
+Animation *animation_spawn_create(Animation *animation_a, Animation *animation_b,
+                                  Animation *animation_c, ...);
+
+//! An alternate form of animation_spawn_create() that accepts an array of other animations.
+//! @note the maximum number of elements allowed in animation_array is 256
+//! @param animation_array an array of component animations to include
+//! @param array_len the number of elements in the animation_array
+//! @return The newly created spawn animation or NULL on failure
+Animation *animation_spawn_create_from_array(Animation **animation_array, uint32_t array_len);
+
+//! Seek to a specific location in the animation. Only forward seeking is allowed. Returns true
+//! if successful, false if the passed in seek location is invalid.
+//! @param animation the animation for which to set the elapsed.
+//! @param elapsed_ms the new elapsed time in milliseconds
+//! @return true if successful, false if the requested elapsed is invalid.
+bool animation_set_elapsed(Animation *animation, uint32_t elapsed_ms);
+
+//! Get the current location in the animation.
+//! @note The animation must be scheduled to get the elapsed time. If it is not schedule,
+//! this method will return false.
+//! @param animation The animation for which to fetch the elapsed.
+//! @param[out] elapsed_ms pointer to variable that will contain the elapsed time in milliseconds
+//! @return true if successful, false on failure
+bool animation_get_elapsed(Animation *animation, int32_t *elapsed_ms);
+
+//! Set an animation to run in reverse (or forward)
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
+//! @param animation the animation to operate on
+//! @param reverse set to true to run in reverse, false to run forward
+//! @return true if successful, false on failure
+bool animation_set_reverse(Animation *animation, bool reverse);
+
+//! Get the reverse setting of an animation
+//! @param animation The animation for which to get the setting
+//! @return the reverse setting
+bool animation_get_reverse(Animation *animation);
+
+//! Set an animation to play N times. The default is 1.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
+//! @param animation the animation to set the play count of
+//! @param play_count number of times to play this animation. Set to ANIMATION_PLAY_COUNT_INFINITE
+//! to make an animation repeat indefinitely.
+//! @return true if successful, false on failure
+bool animation_set_play_count(Animation *animation, uint32_t play_count);
+
+//! Get the play count of an animation
+//! @param animation The animation for which to get the setting
+//! @return the play count
+uint32_t animation_get_play_count(Animation *animation);
+
 //! Sets the time in milliseconds that an animation takes from start to finish.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
 //! @param animation The animation for which to set the duration.
 //! @param duration_ms The duration in milliseconds of the animation. This excludes
 //! any optional delay as set using \ref animation_set_delay().
-void animation_set_duration(struct Animation *animation, uint32_t duration_ms);
+//! @return true if successful, false on failure
+bool animation_set_duration(Animation *animation, uint32_t duration_ms);
+
+//! Get the static duration of an animation from start to end (ignoring how much has already
+//! played, if any).
+//! @param animation The animation for which to get the duration
+//! @param include_delay if true, include the delay time
+//! @param include_play_count if true, incorporate the play_count
+//! @return the duration, in milliseconds. This includes any optional delay a set using
+//! \ref animation_set_delay.
+uint32_t animation_get_duration(Animation *animation, bool include_delay, bool include_play_count);
 
 //! Sets an optional delay for the animation.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
 //! @param animation The animation for which to set the delay.
 //! @param delay_ms The delay in milliseconds that the animation system should
 //! wait from the moment the animation is scheduled to starting the animation.
-void animation_set_delay(struct Animation *animation, uint32_t delay_ms);
+//! @return true if successful, false on failure
+bool animation_set_delay(Animation *animation, uint32_t delay_ms);
+
+//! Get the delay of an animation in milliseconds
+//! @param animation The animation for which to get the setting
+//! @return the delay in milliseconds
+uint32_t animation_get_delay(Animation *animation);
 
 //! Sets the animation curve for the animation.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
 //! @param animation The animation for which to set the curve.
 //! @param curve The type of curve.
 //! @see AnimationCurve
-void animation_set_curve(struct Animation *animation, AnimationCurve curve);
+//! @return true if successful, false on failure
+bool animation_set_curve(Animation *animation, AnimationCurve curve);
+
+//! Gets the animation curve for the animation.
+//! @param animation The animation for which to get the curve.
+//! @return The type of curve.
+AnimationCurve animation_get_curve(Animation *animation);
 
 //! The function pointer type of a custom animation curve.
 //! @param linear_distance The linear normalized animation distance to be curved.
 //! @see animation_set_custom_curve
-typedef uint32_t (*AnimationCurveFunction)(uint32_t linear_distance);
+typedef AnimationProgress (*AnimationCurveFunction)(AnimationProgress linear_distance);
 
 //! Sets a custom animation curve function.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
 //! @param animation The animation for which to set the curve.
 //! @param curve_function The custom animation curve function.
 //! @see AnimationCurveFunction
-void animation_set_custom_curve(struct Animation *animation, AnimationCurveFunction curve_function);
+//! @return true if successful, false on failure
+bool animation_set_custom_curve(Animation *animation, AnimationCurveFunction curve_function);
+
+//! Gets the custom animation curve function for the animation.
+//! @param animation The animation for which to get the curve.
+//! @return The custom animation curve function for the given animation. NULL if not set.
+AnimationCurveFunction animation_get_custom_curve(Animation *animation);
 
 //! The function pointer type of the handler that will be called when an animation is started,
 //! just before updating the first frame of the animation.
 //! @param animation The animation that was started.
-//! @param context The pointer to custom, application specific data, as set using \ref animation_set_handlers()
+//! @param context The pointer to custom, application specific data, as set using
+//! \ref animation_set_handlers()
 //! @note This is called after any optional delay as set by \ref animation_set_delay() has expired.
 //! @see animation_set_handlers
-typedef void (*AnimationStartedHandler)(struct Animation *animation, void *context);
+typedef void (*AnimationStartedHandler)(Animation *animation, void *context);
 
 //! The function pointer type of the handler that will be called when the animation is stopped.
 //! @param animation The animation that was stopped.
 //! @param finished True if the animation was stopped because it was finished normally,
 //! or False if the animation was stopped prematurely, because it was unscheduled before finishing.
-//! @param context The pointer to custom, application specific data, as set using \ref animation_set_handlers()
+//! @param context The pointer to custom, application specific data, as set using
+//! \ref animation_set_handlers()
 //! @see animation_set_handlers
-typedef void (*AnimationStoppedHandler)(struct Animation *animation, bool finished, void *context);
+//! \note
+//! This animation (i.e.: the `animation` parameter) may be destroyed here.
+//! It is not recommended to unschedule or destroy a **different** Animation within this
+//! Animation's `stopped` handler.
+typedef void (*AnimationStoppedHandler)(Animation *animation, bool finished, void *context);
 
 //! The handlers that will get called when an animation starts and stops.
 //! See documentation with the function pointer types for more information.
@@ -3731,18 +5389,23 @@ typedef struct AnimationHandlers {
 //! Often an application needs to run code at the start or at the end of an animation.
 //! Using this function is possible to register callback functions with an animation,
 //! that will get called at the start and end of the animation.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
 //! @param animation The animation for which to set up the callbacks.
 //! @param callbacks The callbacks.
 //! @param context A pointer to application specific data, that will be passed as an argument by
 //! the animation subsystem when a callback is called.
-void animation_set_handlers(struct Animation *animation, AnimationHandlers callbacks, void *context);
+//! @return true if successful, false on failure
+bool animation_set_handlers(Animation *animation, AnimationHandlers callbacks, void *context);
 
 //! Gets the application-specific callback context of the animation.
-//! This `void` pointer is passed as an argument when the animation system calls AnimationHandlers callbacks.
-//! The context pointer can be set to point to any application specific data using \ref animation_set_handlers().
+//! This `void` pointer is passed as an argument when the animation system calls AnimationHandlers
+//! callbacks. The context pointer can be set to point to any application specific data using
+//! \ref animation_set_handlers().
 //! @param animation The animation.
 //! @see animation_set_handlers
-void *animation_get_context(struct Animation *animation);
+void *animation_get_context(Animation *animation);
 
 //! Schedules the animation. Call this once after configuring an animation to get it to
 //! start running.
@@ -3756,7 +5419,8 @@ void *animation_get_context(struct Animation *animation);
 //! `.teardown` and `.setup` will get called, due to the unscheduling and scheduling.
 //! @param animation The animation to schedule.
 //! @see \ref animation_unschedule()
-void animation_schedule(struct Animation *animation);
+//! @return true if successful, false on failure
+bool animation_schedule(Animation *animation);
 
 //! Unschedules the animation, which in effect stops the animation.
 //! @param animation The animation to unschedule.
@@ -3765,7 +5429,8 @@ void animation_schedule(struct Animation *animation);
 //! @note If the animation is not scheduled or NULL, calling this routine is
 //! effectively a no-op
 //! @see \ref animation_schedule()
-void animation_unschedule(struct Animation *animation);
+//! @return true if successful, false on failure
+bool animation_unschedule(Animation *animation);
 
 //! Unschedules all animations of the application.
 //! @see animation_unschedule
@@ -3774,60 +5439,41 @@ void animation_unschedule_all(void);
 //! @return True if the animation was scheduled, or false if it was not.
 //! @note An animation will be scheduled when it is running and not finished yet.
 //! An animation that has finished is automatically unscheduled.
+//! For convenience, passing in a NULL animation argument will simply return false
 //! @param animation The animation for which to get its scheduled state.
 //! @see animation_schedule
 //! @see animation_unschedule
-bool animation_is_scheduled(struct Animation *animation);
-
-///////////////////
-typedef struct Animation {
-  ListNode list_node;
-  const struct AnimationImplementation *implementation;
-  AnimationHandlers handlers; // FIXME: make this const AnimationHandlers *, like the implementation field.
-  void *context;
-  //! Absolute time when the animation got scheduled, in ms since system start.
-  uint32_t abs_start_time_ms;
-  uint32_t delay_ms;
-  uint32_t duration_ms;
-  AnimationCurve curve:3;
-  bool is_completed:1;
-  //! Pointer to a custom curve. Unfortunately, due to backward-compatibility
-  //! constraints, it must fit into 28 bits.
-  //! It is only valid when curve == AnimationCurveCustomFunction.
-  //! The mapping from 28-bit field to pointer is unpublished. Call
-  //! animation_set_custom_curve() to ensure your app continues to run
-  //! after future Pebble updates.
-  uintptr_t custom_curve_function:28;
-} Animation;
+bool animation_is_scheduled(Animation *animation);
 
 //! Pointer to function that (optionally) prepares the animation for running.
 //! This callback is called when the animation is added to the scheduler.
 //! @param animation The animation that needs to be set up.
 //! @see animation_schedule
 //! @see AnimationTeardownImplementation
-typedef void (*AnimationSetupImplementation)(struct Animation *animation);
+typedef void (*AnimationSetupImplementation)(Animation *animation);
 
-//! Pointer to function that updates the animation according to the given normalized distance.
-//! This callback will be called repeatedly by the animation scheduler whenever the animation needs to be updated.
+//! Pointer to function that updates the animation according to the given normalized progress.
+//! This callback will be called repeatedly by the animation scheduler whenever the animation needs
+//! to be updated.
 //! @param animation The animation that needs to update; gets passed in by the animation framework.
-//! @param distance_normalized The current normalized distance; gets passed in by the animation framework for each animation frame.
-//! This is a value between \ref ANIMATION_NORMALIZED_MIN and \ref ANIMATION_NORMALIZED_MAX.
-//! At the start of the animation, the value will be \ref ANIMATION_NORMALIZED_MIN.
-//! At the end of the animation, the value will be \ref ANIMATION_NORMALIZED_MAX.
-//! For each frame during the animation, the value will be the distance along the
-//! animation path, mapped between \ref ANIMATION_NORMALIZED_MIN and
-//! \ref ANIMATION_NORMALIZED_MAX based on the animation duration and the
-//! \ref AnimationCurve set.
-//! For example, say an animation was scheduled at t = 1.0s, has a delay of 1.0s,
-//! a duration of 2.0s and a curve of AnimationCurveLinear.
-//! Then the .update callback will get called on t = 2.0s with
-//! distance_normalized = \ref ANIMATION_NORMALIZED_MIN. For each frame
-//! thereafter until t = 4.0s, the update callback will get called where
-//! distance_normalized is
-//! (\ref ANIMATION_NORMALIZED_MIN + (((\ref ANIMATION_NORMALIZED_MAX - \ref ANIMATION_NORMALIZED_MIN) * t) / duration)).
-//! Other animation curves will result in a non-linear relation between
+//! @param progress The current normalized progress; gets passed in by the animation
+//! framework for each animation frame.
+//! The value \ref ANIMATION_NORMALIZED_MIN represents the start and \ref ANIMATION_NORMALIZED_MAX
+//! represents the end. Values outside this range (generated by a custom curve function) can be used
+//! to implement features like a bounce back effect, where the progress exceeds the desired final
+//! value before returning to complete the animation.
+//! When using a system provided curve function, each frame during the animation will have a
+//! progress value between \ref ANIMATION_NORMALIZED_MIN and \ref ANIMATION_NORMALIZED_MAX based on
+//! the animation duration and the \ref AnimationCurve.
+//! For example, say an animation was scheduled at t = 1.0s, has a delay of 1.0s, a duration of 2.0s
+//! and a curve of AnimationCurveLinear. Then the .update callback will get called on t = 2.0s with
+//! distance_normalized = \ref ANIMATION_NORMALIZED_MIN. For each frame thereafter until t = 4.0s,
+//! the update callback will get called where distance_normalized is (\ref ANIMATION_NORMALIZED_MIN
+//! + (((\ref ANIMATION_NORMALIZED_MAX - \ref ANIMATION_NORMALIZED_MIN) * t) / duration)).
+//! Other system animation curve functions will result in a non-linear relation between
 //! distance_normalized and time.
-typedef void (*AnimationUpdateImplementation)(struct Animation *animation, const uint32_t distance_normalized);
+typedef void (*AnimationUpdateImplementation)(Animation *animation,
+              const AnimationProgress progress);
 
 //! Pointer to function that (optionally) cleans up the animation.
 //! This callback is called when the animation is removed from the scheduler.
@@ -3836,7 +5482,7 @@ typedef void (*AnimationUpdateImplementation)(struct Animation *animation, const
 //! @param animation The animation that needs to be teared down.
 //! @see animation_unschedule
 //! @see AnimationSetupImplementation
-typedef void (*AnimationTeardownImplementation)(struct Animation *animation);
+typedef void (*AnimationTeardownImplementation)(Animation *animation);
 
 //! The 3 callbacks that implement a custom animation.
 //! Only the `.update` callback is mandatory, `.setup` and `.teardown` are optional.
@@ -3866,44 +5512,55 @@ typedef struct AnimationImplementation {
 } AnimationImplementation;
 
 //! Sets the implementation of the custom animation.
-//! When implementing custom animations, use this function to specify what functions need to be called to
-//! for the setup, frame update and teardown of the animation.
+//! When implementing custom animations, use this function to specify what functions need to be
+//! called to for the setup, frame update and teardown of the animation.
+//! @note Trying to set an attribute when an animation is immutable will return false (failure). An
+//! animation is immutable once it has been added to a sequence or spawn animation or has been
+//! scheduled.
 //! @param animation The animation for which to set the implementation.
-//! @param implementation The structure with function pointers to the implementation of the setup, update and teardown functions.
+//! @param implementation The structure with function pointers to the implementation of the setup,
+//!  update and teardown functions.
 //! @see AnimationImplementation
-void animation_set_implementation(struct Animation *animation, const AnimationImplementation *implementation);
+//! @return true if successful, false on failure
+bool animation_set_implementation(Animation *animation,
+                                  const AnimationImplementation *implementation);
+
+//! Gets the implementation of the custom animation.
+//! @param animation The animation for which to get the implementation.
+//! @see AnimationImplementation
+//! @return NULL if animation implementation has not been setup.
+const AnimationImplementation* animation_get_implementation(Animation *animation);
 
 //! @addtogroup PropertyAnimation
-//! \brief Concrete animations to move a layer around over time
-//!
-//! Actually, property animations do more than just moving a Layer around over time.
-//! PropertyAnimation is a concrete class of animations and is built around the Animation subsystem,
-//! which covers anything timing related, but does not move anything around.
-//! A ProperyAnimation animates a "property" of a "subject".
+//! \brief A ProperyAnimation animates the value of a "property" of a "subject" over time.
 //!
 //! <h3>Animating a Layer's frame property</h3>
 //! Currently there is only one specific type of property animation offered off-the-shelf, namely
-//! one to change the frame (property) of a layer (subject), see \ref property_animation_create_layer_frame().
+//! one to change the frame (property) of a layer (subject), see \ref
+//! property_animation_create_layer_frame().
 //!
 //! <h3>Implementing a custom PropertyAnimation</h3>
 //! It is fairly simple to create your own variant of a PropertyAnimation.
 //!
-//! Please refer to \htmlinclude UiFramework.html (chapter "Property Animations") for a conceptual overview
-//! of the animation framework and make sure you understand the underlying \ref Animation, in case you are
-//! not familiar with it, before trying to implement a variation on PropertyAnimation.
+//! Please refer to \htmlinclude UiFramework.html (chapter "Property Animations") for a conceptual
+//! overview of the animation framework and make sure you understand the underlying \ref Animation,
+//! in case you are not familiar with it, before trying to implement a variation on
+//! PropertyAnimation.
 //!
-//! To implement a custom property animation, use \ref property_animation_create() and provide a function
-//! pointers to the accessors (getter and setter) and setup, update and teardown callbacks in the implementation argument.
-//! Note that the type of property to animate with \ref PropertyAnimation is limited to int16_t, GPoint or GRect.
+//! To implement a custom property animation, use \ref property_animation_create() and provide a
+//! function pointers to the accessors (getter and setter) and setup, update and teardown callbacks
+//! in the implementation argument. Note that the type of property to animate with \ref
+//! PropertyAnimation is limited to int16_t, GPoint or GRect.
 //!
-//! For each of these types, there are implementations provided
-//! for the necessary `.update` handler of the animation: see \ref property_animation_update_int16(),
-//! \ref property_animation_update_gpoint() and \ref property_animation_update_grect().
+//! For each of these types, there are implementations provided for the necessary `.update` handler
+//! of the animation: see \ref property_animation_update_int16(), \ref
+//! property_animation_update_gpoint() and \ref property_animation_update_grect().
 //! These update functions expect the `.accessors` to conform to the following interface:
 //! Any getter needs to have the following function signature: `__type__ getter(void *subject);`
-//! Any setter needs to have to following function signature: `void setter(void *subject, __type__ value);`
-//! See \ref Int16Getter, \ref Int16Setter, \ref GPointGetter, \ref GPointSetter, \ref GRectGetter, \ref GRectSetter
-//! for the typedefs that accompany the update fuctions.
+//! Any setter needs to have to following function signature: `void setter(void *subject,
+//! __type__ value);`
+//! See \ref Int16Getter, \ref Int16Setter, \ref GPointGetter, \ref GPointSetter,
+//! \ref GRectGetter, \ref GRectSetter for the typedefs that accompany the update fuctions.
 //!
 //! \code{.c}
 //! static const PropertyAnimationImplementation my_implementation = {
@@ -3923,7 +5580,7 @@ void animation_set_implementation(struct Animation *animation, const AnimationIm
 //! // Use NULL as 'from' value, this will make the animation framework call the getter
 //! // to get the current value of the property and use that as the 'from' value:
 //! s_my_animation_ptr = property_animation_create(&my_implementation, my_layer, NULL, &s_to_point);
-//! animation_schedule(s_my_animation_ptr->animation);
+//! animation_schedule(property_animation_get_animation(s_my_animation_ptr));
 //! \endcode
 //! @{
 
@@ -3933,108 +5590,134 @@ typedef struct PropertyAnimationAccessors PropertyAnimationAccessors;
 struct PropertyAnimationImplementation;
 typedef struct PropertyAnimationImplementation PropertyAnimationImplementation;
 
-typedef struct PropertyAnimation {
-  //! The "inherited" state from the "base class", \ref Animation.
-  Animation animation;
-  //! The values of the property that the animation should animated from and to.
-  struct {
-    //! The value of the property that the animation should animate to.
-    //! When the animation completes, this value will be the final value that is set.
-    union {
-      //! Valid when the property being animated is of type GRect
-      GRect grect;
-      //! Valid when the property being animated is of type GPoint
-      GPoint gpoint;
-      //! Valid when the property being animated is of type int16_t
-      int16_t int16;
-    } to;
-    //! The value of the property that the animation should animate to.
-    //! When the animation starts, this value will be the initial value that is set.
-    union {
-      //! Valid when the property being animated is of type GRect
-      GRect grect;
-      //! Valid when the property being animated is of type GPoint
-      GPoint gpoint;
-      //! Valid when the property being animated is of type int16_t
-      int16_t int16;
-    } from;
-  } values; //!< See detail table
-  void *subject; //!< The subject of the animation of which the property should be animated.
-} PropertyAnimation;
+struct PropertyAnimation;
+typedef struct PropertyAnimation PropertyAnimation;
 
-//! Convenience function to create and initialize a property animation that animates the frame of a Layer.
-//! It sets up the PropertyAnimation to use \ref layer_set_frame() and \ref layer_get_frame()
+//! Convenience function to create and initialize a property animation that animates the frame of a
+//! Layer. It sets up the PropertyAnimation to use \ref layer_set_frame() and \ref layer_get_frame()
 //! as accessors and uses the `layer` parameter as the subject for the animation.
 //! The same defaults are used as with \ref animation_create().
 //! @param layer the layer that will be animated
 //! @param from_frame the frame that the layer should animate from
 //! @param to_frame the frame that the layer should animate to
-//! @note Pass in `NULL` as one of the frame arguments to have it set automatically to the layer's current frame.
-//! This will result in a call to \ref layer_get_frame() to get the current frame of the layer.
-//! @return A pointer to the property animation. `NULL` if animation could not
-//! be created
-struct PropertyAnimation* property_animation_create_layer_frame(struct Layer *layer, GRect *from_frame, GRect *to_frame);
+//! @note Pass in `NULL` as one of the frame arguments to have it set automatically to the layer's
+//! current frame. This will result in a call to \ref layer_get_frame() to get the current frame of
+//! the layer.
+//! @return A handle to the property animation. `NULL` if animation could not be created
+PropertyAnimation *property_animation_create_layer_frame(struct Layer *layer, GRect *from_frame,
+                                                         GRect *to_frame);
+
+//! Convenience function to create and initialize a property animation that animates the bound's
+//! origin of a Layer. It sets up the PropertyAnimation to use layer_set_bounds() and
+//! layer_get_bounds() as accessors and uses the `layer` parameter as the subject for the animation.
+//! The same defaults are used as with \ref animation_create().
+//! @param layer the layer that will be animated
+//! @param from_origin the origin that the bounds should animate from
+//! @param to_origin the origin that the layer should animate to
+//! @return A handle to the property animation. `NULL` if animation could not be created
+PropertyAnimation *property_animation_create_bounds_origin(struct Layer *layer, GPoint *from,
+    GPoint *to);
 
 //! Creates a new PropertyAnimation on the heap and and initializes it with the specified values.
 //! The same defaults are used as with \ref animation_create().
-//! If the `from_value` or the `to_value` is `NULL`, the getter accessor will be called to get the current value
-//! of the property and be used instead.
-//! @param implementation Pointer to the implementation of the animation. In most cases, it makes sense to pass in
-//! a `static const` struct pointer.
-//! @param subject Pointer to the "subject" being animated. This will be passed in when the getter/setter accessors are called,
-//! see \ref PropertyAnimationAccessors, \ref GPointSetter, and friends. The value of this pointer will be copied into
-//! the `.subject` field of the PropertyAnimation struct.
+//! If the `from_value` or the `to_value` is `NULL`, the getter accessor will be called to get the
+//! current value of the property and be used instead.
+//! @param implementation Pointer to the implementation of the animation. In most cases, it makes
+//! sense to pass in a `static const` struct pointer.
+//! @param subject Pointer to the "subject" being animated. This will be passed in when the getter/
+//! setter accessors are called,
+//! see \ref PropertyAnimationAccessors, \ref GPointSetter, and friends. The value of this pointer
+//! will be copied into the `.subject` field of the PropertyAnimation struct.
 //! @param from_value Pointer to the value that the subject should animate from
 //! @param to_value Pointer to the value that the subject should animate to
-//! @note Pass in `NULL` as one of the value arguments to have it set automatically to the subject's current property value,
-//! as returned by the getter function. Also note that passing in `NULL` for both `from_value` and `to_value`, will
-//! result in the animation having the same from- and to- values, effectively not doing anything.
-//! @return A pointer to the property animation. `NULL` if animation could not
-//! be created
-struct PropertyAnimation* property_animation_create(const struct PropertyAnimationImplementation *implementation, void *subject, void *from_value, void *to_value);
+//! @note Pass in `NULL` as one of the value arguments to have it set automatically to the subject's
+//! current property value, as returned by the getter function. Also note that passing in `NULL` for
+//! both `from_value` and `to_value`, will result in the animation having the same from- and to-
+//! values, effectively not doing anything.
+//! @return A handle to the property animation. `NULL` if animation could not be created
+PropertyAnimation* property_animation_create(const PropertyAnimationImplementation *implementation,
+                      void *subject, void *from_value, void *to_value);
 
-//! Free a dynamically allocated property animation
-//! @param property_animation The property animation to be freed.
-void property_animation_destroy(struct PropertyAnimation* property_animation);
+//! Destroy a property animation allocated by property_animation_create() or relatives.
+//! @param property_animation the return value from property_animation_create
+void property_animation_destroy(PropertyAnimation* property_animation);
 
 //! Default update callback for a property animations to update a property of type int16_t.
-//! Assign this function to the `.base.update` callback field of your PropertyAnimationImplementation,
-//! in combination with a `.getter` and `.setter` accessors of types \ref Int16Getter and \ref Int16Setter.
+//! Assign this function to the `.base.update` callback field of your
+//! PropertyAnimationImplementation, in combination with a `.getter` and `.setter` accessors of
+//! types \ref Int16Getter and \ref Int16Setter.
 //! The implementation of this function will calculate the next value of the animation and call the
 //! setter to set the new value upon the subject.
 //! @param property_animation The property animation for which the update is requested.
-//! @param distance_normalized The current normalized distance. See \ref AnimationUpdateImplementation
-//! @note This function is not supposed to be called "manually", but will be called automatically when the animation
-//! is being run.
-void property_animation_update_int16(struct PropertyAnimation *property_animation, const uint32_t distance_normalized);
+//! @param distance_normalized The current normalized distance. See \ref
+//! AnimationUpdateImplementation
+//! @note This function is not supposed to be called "manually", but will be called automatically
+//! when the animation is being run.
+void property_animation_update_int16(PropertyAnimation *property_animation,
+                                     const uint32_t distance_normalized);
+
+//! Default update callback for a property animations to update a property of type uint32_t.
+//! Assign this function to the `.base.update` callback field of your
+//! PropertyAnimationImplementation, in combination with a `.getter` and `.setter` accessors of
+//! types \ref UInt32Getter and \ref UInt32Setter.
+//! The implementation of this function will calculate the next value of the animation and call the
+//! setter to set the new value upon the subject.
+//! @param property_animation The property animation for which the update is requested.
+//! @param distance_normalized The current normalized distance. See \ref
+//! AnimationUpdateImplementation
+//! @note This function is not supposed to be called "manually", but will be called automatically
+//! when the animation is being run.
+void property_animation_update_uint32(PropertyAnimation *property_animation,
+                                      const uint32_t distance_normalized);
 
 //! Default update callback for a property animations to update a property of type GPoint.
-//! Assign this function to the `.base.update` callback field of your PropertyAnimationImplementation,
-//! in combination with a `.getter` and `.setter` accessors of types \ref GPointGetter and \ref GPointSetter.
+//! Assign this function to the `.base.update` callback field of your
+//! PropertyAnimationImplementation,
+//! in combination with a `.getter` and `.setter` accessors of types \ref GPointGetter and \ref
+//! GPointSetter.
 //! The implementation of this function will calculate the next point of the animation and call the
 //! setter to set the new point upon the subject.
 //! @param property_animation The property animation for which the update is requested.
-//! @param distance_normalized The current normalized distance. See \ref AnimationUpdateImplementation
-//! @note This function is not supposed to be called "manually", but will be called automatically when the animation
-//! is being run.
-void property_animation_update_gpoint(struct PropertyAnimation *property_animation, const uint32_t distance_normalized);
+//! @param distance_normalized The current normalized distance. See \ref
+//! AnimationUpdateImplementation
+//! @note This function is not supposed to be called "manually", but will be called automatically
+//! when the animation is being run.
+void property_animation_update_gpoint(PropertyAnimation *property_animation,
+                                      const uint32_t distance_normalized);
 
 //! Default update callback for a property animations to update a property of type GRect.
-//! Assign this function to the `.base.update` callback field of your PropertyAnimationImplementation,
-//! in combination with a `.getter` and `.setter` accessors of types \ref GRectGetter and \ref GRectSetter.
-//! The implementation of this function will calculate the next rectangle of the animation and call the
-//! setter to set the new rectangle upon the subject.
+//! Assign this function to the `.base.update` callback field of your
+//! PropertyAnimationImplementation, in combination with a `.getter` and `.setter` accessors of
+//! types \ref GRectGetter and \ref GRectSetter. The implementation of this function will calculate
+//! the next rectangle of the animation and call the setter to set the new rectangle upon the
+//! subject.
 //! @param property_animation The property animation for which the update is requested.
-//! @param distance_normalized The current normalized distance. See \ref AnimationUpdateImplementation
-//! @note This function is not supposed to be called "manually", but will be called automatically when the animation
-//! is being run.
-void property_animation_update_grect(struct PropertyAnimation *property_animation, const uint32_t distance_normalized);
+//! @param distance_normalized The current normalized distance. See \ref
+//! AnimationUpdateImplementation
+//! @note This function is not supposed to be called "manually", but will be called automatically
+//! when the animation is being run.
+void property_animation_update_grect(PropertyAnimation *property_animation,
+                                     const uint32_t distance_normalized);
 
-//! Work-around for function pointer return type GPoint avoid
+//! Default update callback for a property animations to update a property of type GColor8.
+//! Assign this function to the `.base.update` callback field of your
+//! PropertyAnimationImplementation, in combination with a `.getter` and `.setter` accessors of
+//! types \ref GColor8Getter and \ref GColor8Setter. The implementation of this function will
+//! calculate the next rectangle of the animation and call the setter to set the new value upon
+//! the subject.
+//! @param property_animation The property animation for which the update is requested.
+//! @param distance_normalized The current normalized distance. See \ref
+//! AnimationUpdateImplementation
+//! @note This function is not supposed to be called "manually", but will be called automatically
+//! when the animation is being run.
+void property_animation_update_gcolor8(PropertyAnimation *property_animation,
+                                       const uint32_t distance_normalized);
+
+//! Work-around for function pointer return type GPoint to avoid
 //! tripping the pre-processor to use the equally named GPoint define
 typedef GPoint GPointReturn;
 
-//! Work-around for function pointer return type GRect avoid
+//! Work-around for function pointer return type GRect to avoid
 //! tripping the pre-processor to use the equally named GRect define
 typedef GRect GRectReturn;
 
@@ -4043,10 +5726,22 @@ typedef GRect GRectReturn;
 //! @see \ref PropertyAnimationAccessors
 typedef void (*Int16Setter)(void *subject, int16_t int16);
 
-//! Function signature of a getter function to get the current property of type int16_t of the subject.
+//! Function signature of a getter function to get the current property of type int16_t of the
+//! subject.
 //! @see \ref property_animation_create()
 //! @see \ref PropertyAnimationAccessors
 typedef int16_t (*Int16Getter)(void *subject);
+
+//! Function signature of a setter function to set a property of type uint32_t onto the subject.
+//! @see \ref property_animation_update_int16()
+//! @see \ref PropertyAnimationAccessors
+typedef void (*UInt32Setter)(void *subject, uint32_t uint32);
+
+//! Function signature of a getter function to get the current property of type uint32_t of the
+//! subject.
+//! @see \ref property_animation_create()
+//! @see \ref PropertyAnimationAccessors
+typedef uint32_t (*UInt32Getter)(void *subject);
 
 //! Function signature of a setter function to set a property of type GPoint onto the subject.
 //! @see \ref property_animation_update_gpoint()
@@ -4068,14 +5763,25 @@ typedef void (*GRectSetter)(void *subject, GRect grect);
 //! @see \ref PropertyAnimationAccessors
 typedef GRectReturn (*GRectGetter)(void *subject);
 
-//! Data structure containing the setter and getter function pointers that the property animation should use.
-//! The specified setter function will be used by the animation's update callback. <br/> Based on the
-//! type of the property (int16_t, GPoint or GRect), the accompanying update callback should be used,
-//! see \ref property_animation_update_int16(), \ref property_animation_update_gpoint() and
+//! Function signature of a setter function to set a property of type GColor8 onto the subject.
+//! @see \ref property_animation_update_gcolor8()
+//! @see \ref PropertyAnimationAccessors
+typedef void (*GColor8Setter)(void *subject, GColor8 gcolor);
+
+//! Function signature of a getter function to get the current property of type GColor8 of the
+//! subject.
+//! @see \ref property_animation_create()
+//! @see \ref PropertyAnimationAccessors
+typedef GColor8 (*GColor8Getter)(void *subject);
+
+//! Data structure containing the setter and getter function pointers that the property animation
+//! should use.
+//! The specified setter function will be used by the animation's update callback. <br/> Based on
+//! the type of the property (int16_t, GPoint or GRect), the accompanying update callback should be
+//! used, see \ref property_animation_update_int16(), \ref property_animation_update_gpoint() and
 //! \ref property_animation_update_grect(). <br/>
-//! The getter function is used when the animation is initialized, to assign the current value of the
-//! subject's property as "from" or "to" value, see \ref
-//! property_animation_create().
+//! The getter function is used when the animation is initialized, to assign the current value of
+//! the subject's property as "from" or "to" value, see \ref property_animation_create().
 typedef struct PropertyAnimationAccessors {
   //! Function pointer to the implementation of the function that __sets__ the updated property
   //! value. This function will be called repeatedly for each animation frame.
@@ -4087,6 +5793,10 @@ typedef struct PropertyAnimationAccessors {
     GPointSetter gpoint;
     //! Use if the property to animate is of GRect type
     GRectSetter grect;
+    //! Use if the property to animate is of GColor8 type
+    GColor8Setter gcolor8;
+    //! Use if the property to animate is of uint32_t type
+    UInt32Setter uint32;
   } setter;
   //! Function pointer to the implementation of the function that __gets__ the current property
   //! value. This function will be called during \ref property_animation_create(), to get the current
@@ -4099,6 +5809,10 @@ typedef struct PropertyAnimationAccessors {
     GPointGetter gpoint;
     //! Use if the property to animate is of GRect type
     GRectGetter grect;
+    //! Use if the property to animate is of GColor8 type
+    GColor8Getter gcolor8;
+    //! Use if the property to animate is of uint32_t type
+    UInt32Getter uint32;
   } getter;
 } PropertyAnimationAccessors;
 
@@ -4112,6 +5826,139 @@ typedef struct PropertyAnimationImplementation {
   PropertyAnimationAccessors accessors;
 } PropertyAnimationImplementation;
 
+//! Convenience function to retrieve an animation instance from a property animation instance
+//! @param property_animation The property animation
+//! @return The \ref Animation within this PropertyAnimation
+Animation *property_animation_get_animation(PropertyAnimation *property_animation);
+
+//! Convenience function to clone a property animation instance
+//! @param property_animation The property animation
+//! @return A clone of the original Animation
+#define property_animation_clone(property_animation) \
+    (PropertyAnimation *)animation_clone((Animation *)property_animation)
+
+//! Convenience function to retrieve the 'from' GRect value from property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr The value will be retrieved into this pointer
+//! @return true on success, false on failure
+#define property_animation_get_from_grect(property_animation, value_ptr) \
+    property_animation_from(property_animation, value_ptr, sizeof(GRect), false)
+
+//! Convenience function to set the 'from' GRect value of property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new value
+//! @return true on success, false on failure
+#define property_animation_set_from_grect(property_animation, value_ptr) \
+    property_animation_from(property_animation, value_ptr, sizeof(GRect), true)
+
+//! Convenience function to retrieve the 'from' GPoint value from property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr The value will be retrieved into this pointer
+//! @return true on success, false on failure
+#define property_animation_get_from_gpoint(property_animation, value_ptr) \
+    property_animation_from(property_animation, value_ptr, sizeof(GPoint), false)
+
+//! Convenience function to set the 'from' GPoint value of property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new value
+//! @return true on success, false on failure
+#define property_animation_set_from_gpoint(property_animation, value_ptr) \
+    property_animation_from(property_animation, value_ptr, sizeof(GPoint), true)
+
+//! Convenience function to retrieve the 'from' int16_t value from property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr The value will be retrieved into this pointer
+//! @return true on success, false on failure
+#define property_animation_get_from_int16(property_animation, value_ptr) \
+    property_animation_from(property_animation, value_ptr, sizeof(int16_t), false)
+
+//! Convenience function to set the 'from' int16_t value of property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new value
+//! @return true on success, false on failure
+#define property_animation_set_from_int16(property_animation, value_ptr) \
+    property_animation_from(property_animation, value_ptr, sizeof(int16_t), true)
+
+//! Convenience function to retrieve the 'to' GRect value from property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr The value will be retrieved into this pointer
+//! @return true on success, false on failure
+#define property_animation_get_to_grect(property_animation, value_ptr) \
+    property_animation_to(property_animation, value_ptr, sizeof(GRect), false)
+
+//! Convenience function to set the 'to' GRect value of property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new value
+//! @return true on success, false on failure
+#define property_animation_set_to_grect(property_animation, value_ptr) \
+    property_animation_to(property_animation, value_ptr, sizeof(GRect), true)
+
+//! Convenience function to retrieve the 'to' GPoint value from property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr The value will be retrieved into this pointer
+//! @return true on success, false on failure
+#define property_animation_get_to_gpoint(property_animation, value_ptr) \
+    property_animation_to(property_animation, value_ptr, sizeof(GPoint), false)
+
+//! Convenience function to set the 'to' GPoint value of property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new value
+//! @return true on success, false on failure
+#define property_animation_set_to_gpoint(property_animation, value_ptr) \
+    property_animation_to(property_animation, value_ptr, sizeof(GPoint), true)
+
+//! Convenience function to retrieve the 'to' int16_t value from property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr The value will be retrieved into this pointer
+//! @return true on success, false on failure
+#define property_animation_get_to_int16(property_animation, value_ptr) \
+    property_animation_to(property_animation, value_ptr, sizeof(int16_t), false)
+
+//! Convenience function to set the 'to' int16_t value of property animation handle
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new value
+//! @return true on success, false on failure
+#define property_animation_set_to_int16(property_animation, value_ptr) \
+    property_animation_to(property_animation, value_ptr, sizeof(int16_t), true)
+
+//! Retrieve the subject of a property animation
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer used to store the subject of this property animation
+//! @return The subject of this PropertyAnimation
+#define property_animation_get_subject(property_animation, value_ptr) \
+    property_animation_subject(property_animation, value_ptr, false)
+
+//! Set the subject of a property animation
+//! @param property_animation The PropertyAnimation to be accessed
+//! @param value_ptr Pointer to the new subject value
+#define property_animation_set_subject(property_animation, value_ptr) \
+    property_animation_subject(property_animation, value_ptr, true)
+
+//! Helper function used by the property_animation_get|set_subject macros
+//! @param property_animation Handle to the property animation
+//! @param subject The subject to get or set.
+//! @param set true to set new subject, false to retrieve existing value
+//! @return true if successful, false on failure (usually a bad animation_h)
+bool property_animation_subject(PropertyAnimation *property_animation, void **subject, bool set);
+
+//! Helper function used by the property_animation_get|set_from_.* macros
+//! @param property_animation Handle to the property animation
+//! @param from Pointer to the value
+//! @param size Size of the from value
+//! @param set true to set new value, false to retrieve existing one
+//! @return true if successful, false on failure (usually a bad animation_h)
+bool property_animation_from(PropertyAnimation *property_animation, void *from, size_t size,
+                              bool set);
+
+//! Helper function used by the property_animation_get|set_to_.* macros
+//! @param property_animation handle to the property animation
+//! @param to Pointer to the value
+//! @param size Size of the to value
+//! @param set true to set new value, false to retrieve existing one
+//! @return true if successful, false on failure (usually a bad animation_h)
+bool property_animation_to(PropertyAnimation *property_animation, void *to, size_t size,
+                            bool set);
+
 //! @} // group PropertyAnimation
 
 //! @} // group Animation
@@ -4124,10 +5971,10 @@ typedef struct PropertyAnimationImplementation {
 //!
 //! ![](text_layer.png)
 //! The geometric information (bounds, frame) of the Layer
-//! is used as the "box" in which the text is drawn. The \ref TextLayer also has a number of other properties
-//! that influence how the text is drawn. Most important of these properties are: a pointer to the string to
-//! draw itself, the font, the text color, the background color of the layer, the overflow mode and
-//! alignment of the text inside the layer.
+//! is used as the "box" in which the text is drawn. The \ref TextLayer also has a number of
+//! other properties that influence how the text is drawn. Most important of these properties are:
+//! a pointer to the string to draw itself, the font, the text color, the background color of the
+//! layer, the overflow mode and alignment of the text inside the layer.
 //! @see Layer
 //! @see TextDrawing
 //! @see Fonts
@@ -4176,7 +6023,7 @@ void text_layer_set_text(TextLayer *text_layer, const char *text);
 //! @see text_layer_set_text
 const char* text_layer_get_text(TextLayer *text_layer);
 
-//! Sets the background color of bounding box that will be drawn behind the text
+//! Sets the background color of the bounding box that will be drawn behind the text
 //! @param text_layer The TextLayer of which to set the background color
 //! @param color The new \ref GColor to set the background to
 //! @see text_layer_set_text_color
@@ -4205,6 +6052,26 @@ void text_layer_set_font(TextLayer *text_layer, GFont font);
 //! @param text_alignment The new text alignment for the TextLayer
 //! @see GTextAlignment
 void text_layer_set_text_alignment(TextLayer *text_layer, GTextAlignment text_alignment);
+
+//! Enables text flow following the boundaries of the screen and pagination that introduces
+//! extra line spacing at page breaks to avoid partially clipped lines for the TextLayer.
+//! If the TextLayer is part of a \ref ScrollLayer the ScrollLayer's frame will be used to
+//! configure paging.
+//! @note Make sure the TextLayer is part of the view hierarchy before calling this function.
+//!   Otherwise it has no effect.
+//! @param text_layer The TextLayer for which to enable text flow and paging
+//! @param inset Additional amount of pixels to inset to the inside of the screen for text flow
+//! @see text_layer_restore_default_text_flow_and_paging
+//! @see graphics_text_attributes_enable_screen_text_flow
+//! @see graphics_text_attributes_enable_paging
+void text_layer_enable_screen_text_flow_and_paging(TextLayer *text_layer, uint8_t inset);
+
+//! Restores text flow and paging for the TextLayer to the rectangular defaults.
+//! @param text_layer The TextLayer for which to restore text flow and paging
+//! @see text_layer_enable_screen_text_flow_and_paging
+//! @see graphics_text_attributes_restore_default_text_flow
+//! @see graphics_text_attributes_restore_default_paging
+void text_layer_restore_default_text_flow_and_paging(TextLayer *text_layer);
 
 //! Calculates the size occupied by the current text of the TextLayer
 //! @param text_layer the TextLayer for which to calculate the text's size
@@ -4414,43 +6281,83 @@ void scroll_layer_set_shadow_hidden(ScrollLayer *scroll_layer, bool hidden);
 //! @return True if the shadow is hidden, false if it is not hidden.
 bool scroll_layer_get_shadow_hidden(const ScrollLayer *scroll_layer);
 
+//! Enables or disables paging of the ScrollLayer (default: disabled). When enabled, every button
+//! press will change the scroll offset by the frame's height.
+//! @param scroll_layer The scroll layer for which to enable or disable paging
+//! @param paging_enabled True, if paging should be enabled. False to enable.
+void scroll_layer_set_paging(ScrollLayer *scroll_layer, bool paging_enabled);
+
+//! Check whether or not the ScrollLayer uses paging when pressing buttons.
+//! @param scroll_layer The scroll layer for which to get the paging behavior.
+//! @return True, if paging is enabled; false otherwise.
+bool scroll_layer_get_paging(ScrollLayer *scroll_layer);
+
+struct ContentIndicator;
+typedef struct ContentIndicator ContentIndicator;
+
+//! Gets the ContentIndicator for a ScrollLayer.
+//! @param scroll_layer The ScrollLayer for which to get the ContentIndicator
+//! @return A pointer to the ContentIndicator, or `NULL` upon failure.
+ContentIndicator *scroll_layer_get_content_indicator(ScrollLayer *scroll_layer);
+
+//! Value to describe directions for \ref ContentIndicator.
+//! @see \ref content_indicator_configure_direction
+//! @see \ref content_indicator_set_content_available
+typedef enum {
+  ContentIndicatorDirectionUp = 0, //!< The up direction.
+  ContentIndicatorDirectionDown, //!< The down direction.
+  NumContentIndicatorDirections //!< The number of supported directions.
+} ContentIndicatorDirection;
+
+//! Struct used to configure directions for \ref ContentIndicator.
+//! @see \ref content_indicator_configure_direction
+typedef struct {
+  Layer *layer; //!< The layer where the arrow indicator will be rendered when content is available.
+  bool times_out; //!< Whether the display of the arrow indicator should timeout.
+  GAlign alignment; //!< The alignment of the arrow within the provided layer.
+  struct {
+    GColor foreground; //!< The color of the arrow.
+    GColor background; //!< The color of the layer behind the arrow.
+  } colors;
+} ContentIndicatorConfig;
+
+//! Creates a ContentIndicator on the heap.
+//! @return A pointer to the ContentIndicator. `NULL` if the ContentIndicator could not be created.
+ContentIndicator *content_indicator_create(void);
+
+//! Destroys a ContentIndicator previously created using \ref content_indicator_create().
+//! @param content_indicator The ContentIndicator to destroy.
+void content_indicator_destroy(ContentIndicator *content_indicator);
+
+//! Configures a ContentIndicator for the given direction.
+//! @param content_indicator The ContentIndicator to configure.
+//! @param direction The direction for which to configure the ContentIndicator.
+//! @param config The configuration to use to configure the ContentIndicator. If NULL, the data
+//! for the specified direction will be reset.
+//! @return True if the ContentIndicator was successfully configured for the given direction,
+//! false otherwise.
+bool content_indicator_configure_direction(ContentIndicator *content_indicator,
+                                           ContentIndicatorDirection direction,
+                                           const ContentIndicatorConfig *config);
+
+//! Retrieves the availability status of content in the given direction.
+//! @param content_indicator The ContentIndicator for which to get the content availability.
+//! @param direction The direction for which to get the content availability.
+//! @return True if content is available in the given direction, false otherwise.
+bool content_indicator_get_content_available(ContentIndicator *content_indicator,
+                                             ContentIndicatorDirection direction);
+
+//! Sets the availability status of content in the given direction.
+//! @param content_indicator The ContentIndicator for which to set the content availability.
+//! @param direction The direction for which to set the content availability.
+//! @param available Whether or not content is available.
+//! @note If times_out is enabled, calling this function resets any previously scheduled timeout
+//! timer for the ContentIndicator.
+void content_indicator_set_content_available(ContentIndicator *content_indicator,
+                                             ContentIndicatorDirection direction,
+                                             bool available);
+
 //! @} // group ScrollLayer
-
-//! @addtogroup InverterLayer
-//! \brief Layer that inverts anything "below it".
-//!
-//! ![](inverter_layer.png)
-//! This layer takes what has been drawn into the graphics context by layers
-//! that are "behind" it in the layer hierarchy.
-//! Then, the inverter layer uses its geometric information (bounds, frame) as
-//! the area to invert in the graphics context. Inverting will cause black
-//! pixels to become white and vice versa.
-//!
-//! The InverterLayer is useful, for example, to highlight the selected item
-//! in a menu. In fact, the \ref MenuLayer itself uses InverterLayer to
-//! accomplish its selection highlighting.
-//! @{
-
-struct InverterLayer;
-typedef struct InverterLayer InverterLayer;
-
-//! Creates a new InverterLayer on the heap and initializes it with the default values.
-//! * Clips: `true`
-//! * Hidden: `false`
-//! @return A pointer to the InverterLayer. `NULL` if the InverterLayer could not
-//! be created
-InverterLayer* inverter_layer_create(GRect frame);
-
-//! Destroys an InverterLayer previously created by inverter_layer_create
-void inverter_layer_destroy(InverterLayer* inverter_layer);
-
-//! Gets the "root" Layer of the inverter layer, which is the parent for the sub-
-//! layers used for its implementation.
-//! @param inverter_layer Pointer to the InverterLayer for which to get the "root" Layer
-//! @return The "root" Layer of the inverter layer.
-Layer* inverter_layer_get_layer(InverterLayer *inverter_layer);
-
-//! @} // group InverterLayer
 
 //! @addtogroup MenuLayer
 //! \brief Layer that displays a standard list menu. Data is provided using
@@ -4470,8 +6377,8 @@ Layer* inverter_layer_get_layer(InverterLayer *inverter_layer);
 //! its own height. The heights are provided by callbacks.
 //! * Deviation from the Layer system for cell drawing: Each menu item does
 //! _not_ have its own Layer (to minimize memory usage). Instead, a
-//! drawing callback is set onto the MenuLayer that is responsible
-//! for drawing each menu item. The menu layer will call this callback for each
+//! drawing callback is set onto the \ref MenuLayer that is responsible
+//! for drawing each menu item. The \ref MenuLayer will call this callback for each
 //! menu item that is visible and needs to be rendered.
 //! * Cell and header drawing can be customized by implementing a custom drawing
 //! callback.
@@ -4484,6 +6391,8 @@ Layer* inverter_layer_get_layer(InverterLayer *inverter_layer);
 
 //! Section drawing function to draw a basic section cell with the title, subtitle, and icon of the section. 
 //! Call this function inside the `.draw_row` callback implementation, see \ref MenuLayerCallbacks.
+//! Note that if the size of `cell_layer` is too small to fit all of the cell items specified, not
+//! all of them may be drawn.
 //! @param ctx The destination graphics context
 //! @param cell_layer The layer of the cell to draw
 //! @param title If non-null, draws a title in larger text (24 points, bold
@@ -4547,8 +6456,7 @@ typedef struct MenuIndex {
 //! @param b Pointer to the menu index of the second item
 //! @return 0 if A and B are equal, 1 if A has a higher section & row
 //! combination than B or else -1
-int16_t menu_index_compare(MenuIndex *a, MenuIndex *b);
-
+int16_t menu_index_compare(const MenuIndex *a, const MenuIndex *b);
 
 typedef struct MenuCellSpan {
   int16_t y;
@@ -4561,7 +6469,7 @@ struct MenuLayer;
 typedef struct MenuLayer MenuLayer;
 
 //! Function signature for the callback to get the number of sections in a menu.
-//! @param menu_layer The menu layer for which the data is requested
+//! @param menu_layer The \ref MenuLayer for which the data is requested
 //! @param callback_context The callback context
 //! @return The number of sections in the menu
 //! @see \ref menu_layer_set_callbacks()
@@ -4571,7 +6479,7 @@ typedef uint16_t (*MenuLayerGetNumberOfSectionsCallback)(struct MenuLayer *menu_
 
 //! Function signature for the callback to get the number of rows in a
 //! given section in a menu.
-//! @param menu_layer The menu layer for which the data is requested
+//! @param menu_layer The \ref MenuLayer for which the data is requested
 //! @param section_index The index of the section of the menu for which the
 //! number of items it contains is requested
 //! @param callback_context The callback context
@@ -4584,7 +6492,7 @@ typedef uint16_t (*MenuLayerGetNumberOfRowsInSectionsCallback)(struct MenuLayer 
 
 //! Function signature for the callback to get the height of the menu cell
 //! at a given index.
-//! @param menu_layer The menu layer for which the data is requested
+//! @param menu_layer The \ref MenuLayer for which the data is requested
 //! @param cell_index The MenuIndex for which the cell height is requested
 //! @param callback_context The callback context
 //! @return The height of the cell at the given MenuIndex
@@ -4596,7 +6504,7 @@ typedef int16_t (*MenuLayerGetCellHeightCallback)(struct MenuLayer *menu_layer,
 
 //! Function signature for the callback to get the height of the section header
 //! at a given section index.
-//! @param menu_layer The menu layer for which the data is requested
+//! @param menu_layer The \ref MenuLayer for which the data is requested
 //! @param section_index The index of the section for which the header height is
 //! requested
 //! @param callback_context The callback context
@@ -4609,7 +6517,7 @@ typedef int16_t (*MenuLayerGetHeaderHeightCallback)(struct MenuLayer *menu_layer
 
 //! Function signature for the callback to get the height of the separator
 //! at a given index.
-//! @param menu_layer The menu layer for which the data is requested
+//! @param menu_layer The \ref MenuLayer for which the data is requested
 //! @param cell_index The MenuIndex for which the cell height is requested
 //! @param callback_context The callback context
 //! @return The height of the separator at the given MenuIndex
@@ -4674,7 +6582,7 @@ typedef void (*MenuLayerDrawSeparatorCallback)(GContext* ctx,
 
 //! Function signature for the callback to handle the event that a user hits
 //! the SELECT button.
-//! @param menu_layer The menu layer for which the selection event occured
+//! @param menu_layer The \ref MenuLayer for which the selection event occured
 //! @param cell_index The MenuIndex of the cell that is selected
 //! @param callback_context The callback context
 //! @see \ref menu_layer_set_callbacks()
@@ -4685,7 +6593,7 @@ typedef void (*MenuLayerSelectCallback)(struct MenuLayer *menu_layer,
 
 //! Function signature for the callback to handle a change in the current
 //! selected item in the menu.
-//! @param menu_layer The menu layer for which the selection event occured
+//! @param menu_layer The \ref MenuLayer for which the selection event occured
 //! @param new_index The MenuIndex of the new item that is selected now
 //! @param old_index The MenuIndex of the old item that was selected before
 //! @param callback_context The callback context
@@ -4696,7 +6604,33 @@ typedef void (*MenuLayerSelectionChangedCallback)(struct MenuLayer *menu_layer,
                                                   MenuIndex old_index,
                                                   void *callback_context);
 
-//! Data structure containing all the callbacks of a MenuLayer.
+//! Function signature for the callback which allows or changes selection behavior of the menu.
+//! In order to change the cell that should be selected, modify the passed in new_index.
+//! Preventing the selection from changing, new_index can be assigned the value of old_index.
+//! @param menu_layer The \ref MenuLayer for which the selection event that occured
+//! @param new_index Pointer to the index that the MenuLayer is going to change selection to.
+//! @param old_index The index that is being unselected.
+//! @param callback_context The callback context
+//! @note \ref menu_layer_set_selected_index will not trigger this callback when
+//! the selection changes, but \ref menu_layer_set_selected_next will.
+typedef void (*MenuLayerSelectionWillChangeCallback)(struct MenuLayer *menu_layer,
+                                                     MenuIndex *new_index,
+                                                     MenuIndex old_index,
+                                                     void *callback_context);
+
+//! Function signature for the callback which draws the menu's background.
+//! The background is underneath the cells of the menu, and is visible in the
+//! padding below the bottom cell, or if a cell's background color is set to \ref GColorClear.
+//! @param ctx The destination graphics context to draw into.
+//! @param bg_layer The background's layer, containing the geometry of the background.
+//! @param highlight Whether this should be rendered as highlighted or not. Highlight style
+//! should match the highlight style of cells, since this color can be used for animating selection.
+typedef void (*MenuLayerDrawBackgroundCallback)(GContext* ctx,
+                                                const Layer *bg_layer,
+                                                bool highlight,
+                                                void *callback_context);
+
+//! Data structure containing all the callbacks of a \ref MenuLayer.
 typedef struct MenuLayerCallbacks {
   //! Callback that gets called to get the number of sections in the menu.
   //! This can get called at various moments throughout the life of a menu.
@@ -4715,7 +6649,7 @@ typedef struct MenuLayerCallbacks {
 
   //! Callback that gets called to get the height of a section header.
   //! This can get called at various moments throughout the life of a menu.
-  //! @note When `NULL`, the defaults height of 0 pixels is used. This disables
+  //! @note When `NULL`, the default height of 0 pixels is used. This disables
   //! section headers.
   MenuLayerGetHeaderHeightCallback get_header_height;
 
@@ -4748,7 +6682,7 @@ typedef struct MenuLayerCallbacks {
 
   //! Callback that gets called to get the height of a separator
   //! This can get called at various moments throughout the life of a menu.
-  //! @note When `NULL`, the default height of 1 is used.
+  //! @note When `NULL`, the default height of 0 is used.
   MenuLayerGetSeparatorHeightCallback get_separator_height;
 
   //! Callback that gets called to render a separator.
@@ -4757,9 +6691,23 @@ typedef struct MenuLayerCallbacks {
   //! @note Must be set to a valid callback, unless `.get_separator_height` is
   //! `NULL`. Causes undefined behavior otherwise.
   MenuLayerDrawSeparatorCallback draw_separator;
+
+  //! Callback that gets called before the selected cell changes.
+  //! This gets called before the selected item in the MenuLayer is changed,
+  //! and will allow for the selected cell to be overridden.
+  //! This allows for skipping cells in the menu, locking selection onto a given item,
+  MenuLayerSelectionWillChangeCallback selection_will_change;
+
+  //! Callback that gets called before any cells are drawn.
+  //! This supports two states, either highlighted or not highlighted.
+  //! If highlighted is specified, it is expected to be colored in the same
+  //! style as the menu's cells are.
+  //! If this callback is not specified, it will default to the colors set with
+  //! \ref menu_layer_set_normal_colors and \ref menu_layer_set_highlight_colors.
+  MenuLayerDrawBackgroundCallback draw_background;
 } MenuLayerCallbacks;
 
-//! Creates a new MenuLayer on the heap and initalizes it with the default values.
+//! Creates a new \ref MenuLayer on the heap and initalizes it with the default values.
 //!
 //! * Clips: `true`
 //! * Hidden: `false`
@@ -4767,41 +6715,40 @@ typedef struct MenuLayerCallbacks {
 //! * Content offset: \ref GPointZero
 //! * Callbacks: None (`NULL` for each one)
 //! * Callback context: `NULL`
-//! * After the relevant callbacks are called to populate the menu, the item at MenuIndex(0, 0) will be selected
-//!   initially.
-//! @return A pointer to the MenuLayer. `NULL` if the MenuLayer could not
+//! * After the relevant callbacks are called to populate the menu, the item at MenuIndex(0, 0)
+//!   will be selected initially.
+//! @return A pointer to the \ref MenuLayer. `NULL` if the \ref MenuLayer could not
 //! be created
 MenuLayer* menu_layer_create(GRect frame);
 
-//! Destroys a MenuLayer previously created by menu_layer_create.
+//! Destroys a \ref MenuLayer previously created by menu_layer_create.
 void menu_layer_destroy(MenuLayer* menu_layer);
 
-//! Gets the "root" Layer of the menu layer, which is the parent for the sub-
+//! Gets the "root" Layer of the \ref MenuLayer, which is the parent for the sub-
 //! layers used for its implementation.
 //! @param menu_layer Pointer to the MenuLayer for which to get the "root" Layer
-//! @return The "root" Layer of the menu layer.
+//! @return The "root" Layer of the \ref MenuLayer.
 Layer* menu_layer_get_layer(const MenuLayer *menu_layer);
 
-//! Gets the ScrollLayer of the menu layer, which is the layer responsible for
-//! the scrolling of the menu layer.
-//! @param menu_layer Pointer to the MenuLayer for which to get the ScrollLayer
-//! @return The ScrollLayer of the menu layer.
+//! Gets the ScrollLayer of the \ref MenuLayer, which is the layer responsible for
+//! the scrolling of the \ref MenuLayer.
+//! @param menu_layer Pointer to the \ref MenuLayer for which to get the ScrollLayer
+//! @return The ScrollLayer of the \ref MenuLayer.
 ScrollLayer* menu_layer_get_scroll_layer(const MenuLayer *menu_layer);
 
 //! Sets the callbacks for the MenuLayer.
-//! @param menu_layer Pointer to the MenuLayer for which to set the callbacks
+//! @param menu_layer Pointer to the \ref MenuLayer for which to set the callbacks
 //! and callback context.
 //! @param callback_context The new callback context. This is passed into each
 //! of the callbacks and can be set to point to application provided data.
-//! @param callbacks The new callbacks for the MenuLayer. The storage for this
+//! @param callbacks The new callbacks for the \ref MenuLayer. The storage for this
 //! data structure must be long lived. Therefore, it cannot be stack-allocated.
 //! @see MenuLayerCallbacks
-void menu_layer_set_callbacks(MenuLayer *menu_layer,
-                              void *callback_context,
-                              MenuLayerCallbacks callbacks);
+void menu_layer_set_callbacks(MenuLayer *menu_layer, void *callback_context,
+                                       MenuLayerCallbacks callbacks);
 
 //! Convenience function to set the \ref ClickConfigProvider callback on the
-//! given window to menu layer's internal click config provider. This internal
+//! given window to the \ref MenuLayer internal click config provider. This internal
 //! click configuration provider, will set up the default UP & DOWN
 //! scrolling / menu item selection behavior.
 //! This function calls \ref scroll_layer_set_click_config_onto_window to
@@ -4810,7 +6757,7 @@ void menu_layer_set_callbacks(MenuLayer *menu_layer,
 //! Click and long click events for the SELECT button can be handled by
 //! installing the appropriate callbacks using \ref menu_layer_set_callbacks().
 //! This is a deviation from the usual click configuration provider pattern.
-//! @param menu_layer The MenuLayer that needs to receive click events.
+//! @param menu_layer The \ref MenuLayer that needs to receive click events.
 //! @param window The window for which to set the click configuration.
 //! @see \ref Clicks
 //! @see \ref window_set_click_config_provider_with_context()
@@ -4819,27 +6766,26 @@ void menu_layer_set_click_config_onto_window(MenuLayer *menu_layer,
                                              struct Window *window);
 
 //! Values to specify how a (selected) row should be aligned relative to the
-//! visible area of the MenuLayer.
+//! visible area of the \ref MenuLayer.
 typedef enum {
-  //! Don't align or update the scroll offset of the MenuLayer.
+  //! Don't align or update the scroll offset of the \ref MenuLayer.
   MenuRowAlignNone,
 
-  //! Scroll the contents of the MenuLayer in such way that the selected row
+  //! Scroll the contents of the \ref MenuLayer in such way that the selected row
   //! is centered relative to the visible area.
   MenuRowAlignCenter,
 
-  //! Scroll the contents of the MenuLayer in such way that the selected row
+  //! Scroll the contents of the \ref MenuLayer in such way that the selected row
   //! is at the top of the visible area.
   MenuRowAlignTop,
 
-  //! Scroll the contents of the MenuLayer in such way that the selected row
+  //! Scroll the contents of the \ref MenuLayer in such way that the selected row
   //! is at the bottom of the visible area.
   MenuRowAlignBottom,
-
 } MenuRowAlign;
 
 //! Selects the next or previous item, relative to the current selection.
-//! @param menu_layer The MenuLayer for which to select the next item
+//! @param menu_layer The \ref MenuLayer for which to select the next item
 //! @param up Supply `false` to select the next item in the list (downwards),
 //! or `true` to select the previous item in the list (upwards).
 //! @param scroll_align The alignment of the new selection
@@ -4852,7 +6798,7 @@ void menu_layer_set_selected_next(MenuLayer *menu_layer,
                                   bool animated);
 
 //! Selects the item with given \ref MenuIndex.
-//! @param menu_layer The MenuLayer for which to change the selection
+//! @param menu_layer The \ref MenuLayer for which to change the selection
 //! @param index The index of the item to select
 //! @param scroll_align The alignment of the new selection
 //! @param animated Supply `true` to animate changing the selection, or `false`
@@ -4864,8 +6810,12 @@ void menu_layer_set_selected_index(MenuLayer *menu_layer,
                                    MenuIndex index, MenuRowAlign scroll_align,
                                    bool animated);
 
-//! Gets the MenuIndex of the currently selection menu item.
-//! @param menu_layer The MenuLayer for which to get the current selected index.
+//! Gets the MenuIndex of the currently selected menu item.
+//! @param menu_layer The \ref MenuLayer for which to get the current selected index.
+//! @see menu_cell_layer_is_highlighted
+//! @note This function should not be used to determine whether a cell should be
+//! highlighted or not. See \ref menu_cell_layer_is_highlighted for more
+//! information.
 MenuIndex menu_layer_get_selected_index(const MenuLayer *menu_layer);
 
 //! Reloads the data of the menu. This causes the menu to re-request the menu
@@ -4873,8 +6823,77 @@ MenuIndex menu_layer_get_selected_index(const MenuLayer *menu_layer);
 //! The current selection and scroll position will not be changed. See the
 //! note with \ref menu_layer_set_selected_index() for the behavior if the
 //! old selection is no longer valid.
-//! @param menu_layer The MenuLayer for which to reload the data.
+//! @param menu_layer The \ref MenuLayer for which to reload the data.
 void menu_layer_reload_data(MenuLayer *menu_layer);
+
+//! Returns whether or not the given cell layer is highlighted.
+//! Using this for determining highlight behaviour is preferable to using
+//! \ref menu_layer_get_selected_index. Row drawing callbacks may be invoked multiple
+//! times with a different highlight status on the same cell in order to handle partially
+//! highlighted cells during animation.
+//! @param cell_layer The \ref Layer for the cell to check highlight status.
+//! @return true if the given cell layer is highlighted in the menu.
+bool menu_cell_layer_is_highlighted(const Layer *cell_layer);
+
+//! Set the default colors to be used for cells when it is in a normal state (not highlighted).
+//! The GContext's text and fill colors will be set appropriately prior to calling the `.draw_row`
+//! callback.
+//! If this function is not explicitly called on a \ref MenuLayer, it will default to white
+//! background with black foreground.
+//! @param menu_layer The \ref MenuLayer for which to set the colors.
+//! @param background The color to be used for the background of the cell.
+//! @param foreground The color to be used for the foreground and text of the cell.
+//! @see \ref menu_layer_set_highlight_colors
+void menu_layer_set_normal_colors(MenuLayer *menu_layer, GColor background, GColor foreground);
+
+//! Set the default colors to be used for cells when it is in a highlighted state.
+//! The GContext's text and fill colors will be set appropriately prior to calling the `.draw_row`
+//! callback.
+//! If this function is not explicitly called on a \ref MenuLayer, it will default to black
+//! background with white foreground.
+//! @param menu_layer The \ref MenuLayer for which to set the colors.
+//! @param background The color to be used for the background of the cell.
+//! @param foreground The color to be used for the foreground and text of the cell.
+//! @see \ref menu_layer_set_normal_colors
+void menu_layer_set_highlight_colors(MenuLayer *menu_layer, GColor background, GColor foreground);
+
+//! This enables or disables padding at the bottom of the \ref MenuLayer.
+//! Padding at the bottom of the layer keeps the bottom item from being at the very bottom of the
+//! screen.
+//! Padding is turned on by default for all MenuLayers.
+//! The color of the padded area will be the background color set using
+//! \ref menu_layer_set_normal_colors(). To color the padding a different color, use
+//! \ref MenuLayerDrawBackgroundCallback.
+//! @param menu_layer The menu layer for which to enable or disable the padding.
+//! @param enable True = enable padding, False = disable padding.
+void menu_layer_pad_bottom_enable(MenuLayer *menu_layer, bool enable);
+
+//! True, if the \ref MenuLayer generally scrolls such that the selected row is in the center.
+//! @see \ref menu_layer_set_center_focused
+bool menu_layer_get_center_focused(MenuLayer *menu_layer);
+
+//! Controls if the \ref MenuLayer generally scrolls such that the selected row is in the center.
+//! For platforms with a round display (PBL_ROUND) the default is true,
+//! otherwise false is the default
+//! @param menu_layer The menu layer for which to enable or disable the behavior.
+//! @param center_focused true = enable the mode, false = disable it.
+//! @see \ref menu_layer_get_center_focused
+void menu_layer_set_center_focused(MenuLayer *menu_layer, bool center_focused);
+
+//! Returns whether or not the specified cell index is currently selected.
+//! @param menu_layer The \ref MenuLayer to use when determining if the index is selected.
+//! @param index The \ref MenuIndex of the cell to check for selection.
+//! @note This function should not be used to determine whether a cell is highlighted or not.
+//! See \ref menu_cell_layer_is_highlighted for more information.
+bool menu_layer_is_index_selected(const MenuLayer *menu_layer, MenuIndex *index);
+
+#define MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT ((const int16_t) 68)
+
+#define MENU_CELL_ROUND_FOCUSED_TALL_CELL_HEIGHT ((const int16_t) 84)
+
+#define MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT ((const int16_t) 24)
+
+#define MENU_CELL_ROUND_UNFOCUSED_TALL_CELL_HEIGHT ((const int16_t) 32)
 
 //! @} // group MenuLayer
 
@@ -4994,13 +7013,10 @@ MenuLayer *simple_menu_layer_get_menu_layer(SimpleMenuLayer *simple_menu);
 //! list, for example "jump to next track" in a Music app.
 //!
 //! <h3>Geometry</h3>
-//! * The action bar is 20 pixels wide. Use the \ref ACTION_BAR_WIDTH define.
-//! * The top and bottom spacing is 3 pixels each (the space between the top and
-//! bottom of the frame of the action bar and the edges of the window it is
-//! contained in).
-//! * Icons should not be wider than 18 pixels. It is recommended to use a size
-//! of around 14 x 14 pixels for the "visual core" of the icon, and extending
-//! or contracting where needed.
+//! * The action bar is 30 pixels wide. Use the \ref ACTION_BAR_WIDTH define.
+//! * Icons should not be wider than 28 pixels, or taller than 18 pixels.
+//! It is recommended to use a size of around 15 x 15 pixels for the "visual core" of the icon,
+//! and extending or contracting where needed.
 //! <h3>Example Code</h3>
 //! The code example below shows how to do the initial setup of the action bar
 //! in a window's `.load` handler.
@@ -5030,18 +7046,26 @@ MenuLayer *simple_menu_layer_get_menu_layer(SimpleMenuLayer *simple_menu);
 //!                                              click_config_provider);
 //!
 //!   // Set the icons:
-//!   // The loading the icons is omitted for brevity... See HeapBitmap.
-//!   action_bar_layer_set_icon(action_bar, BUTTON_ID_UP, &my_icon_previous);
-//!   action_bar_layer_set_icon(action_bar, BUTTON_ID_DOWN, &my_icon_next);
+//!   // The loading of the icons is omitted for brevity... See gbitmap_create_with_resource()
+//!   action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_UP, my_icon_previous, true);
+//!   action_bar_layer_set_icon_animated(action_bar, BUTTON_ID_DOWN, my_icon_next, true);
 //! }
 //! \endcode
 //! @{
 
 //! The width of the action bar in pixels.
-#define ACTION_BAR_WIDTH 20
+#define ACTION_BAR_WIDTH PBL_IF_RECT_ELSE(30, 40)
 
 //! The maximum number of action bar items.
 #define NUM_ACTION_BAR_ITEMS 3
+
+typedef enum {
+  ActionBarLayerIconPressAnimationNone = 0,
+  ActionBarLayerIconPressAnimationMoveLeft,
+  ActionBarLayerIconPressAnimationMoveUp,
+  ActionBarLayerIconPressAnimationMoveRight,
+  ActionBarLayerIconPressAnimationMoveDown,
+} ActionBarLayerIconPressAnimation;
 
 struct ActionBarLayer;
 typedef struct ActionBarLayer ActionBarLayer;
@@ -5091,12 +7115,15 @@ void action_bar_layer_set_click_config_provider(ActionBarLayer *action_bar, Clic
 
 //! Sets an action bar icon onto one of the 3 slots as identified by `button_id`.
 //! Only \ref BUTTON_ID_UP, \ref BUTTON_ID_SELECT and \ref BUTTON_ID_DOWN can be
-//! used. Whenever an icon is set, the click configuration provider will be
+//! used. The transition will not be animated.
+//! Whenever an icon is set, the click configuration provider will be
 //! called, to give the application the opportunity to reconfigure the button
 //! interaction.
 //! @param action_bar The action bar for which to set the new icon
 //! @param button_id The identifier of the button for which to set the icon
 //! @param icon Pointer to the \ref GBitmap icon
+//! @see action_bar_layer_set_icon_animated()
+//! @see action_bar_layer_set_icon_press_animation()
 //! @see action_bar_layer_set_click_config_provider()
 void action_bar_layer_set_icon(ActionBarLayer *action_bar, ButtonId button_id, const GBitmap *icon);
 
@@ -5143,14 +7170,112 @@ void action_bar_layer_remove_from_window(ActionBarLayer *action_bar);
 //! @param background_color The new background color
 void action_bar_layer_set_background_color(ActionBarLayer *action_bar, GColor background_color);
 
+//! Sets an action bar icon onto one of the 3 slots as identified by `button_id`.
+//! Only \ref BUTTON_ID_UP, \ref BUTTON_ID_SELECT and \ref BUTTON_ID_DOWN can be
+//! used. Optionally, if `animated` is `true`, the transition will be animated.
+//! Whenever an icon is set, the click configuration provider will be called,
+//! to give the application the opportunity to reconfigure the button interaction.
+//! @param action_bar The action bar for which to set the new icon
+//! @param button_id The identifier of the button for which to set the icon
+//! @param icon Pointer to the \ref GBitmap icon
+//! @param animated True = animate the transition, False = do not animate the transition
+//! @see action_bar_layer_set_icon()
+//! @see action_bar_layer_set_icon_press_animation()
+//! @see action_bar_layer_set_click_config_provider()
+void action_bar_layer_set_icon_animated(ActionBarLayer *action_bar, ButtonId button_id,
+                                        const GBitmap *icon, bool animated);
+
+//! Sets the animation to use while a button is pressed on an ActionBarLayer.
+//! By default we use ActionBarLayerIconPressAnimationMoveLeft
+//! @param action_bar The action bar for which to set the press animation
+//! @param button_id The button for which to set the press animation
+//! @param animation The animation to use.
+//! @see action_bar_layer_set_icon_animated()
+//! @see action_bar_layer_set_click_config_provider()
+void action_bar_layer_set_icon_press_animation(ActionBarLayer *action_bar, ButtonId button_id,
+                                               ActionBarLayerIconPressAnimation animation);
+
 //! @} // group ActionBarLayer
+
+//! @addtogroup StatusBarLayer
+//! \brief Layer that serves as a configurable status bar.
+//! @{
+
+struct StatusBarLayer;
+typedef struct StatusBarLayer StatusBarLayer;
+
+//! Values that are used to indicate the different status bar separator modes.
+typedef enum {
+  //! The default mode. No separator will be shown.
+  StatusBarLayerSeparatorModeNone = 0,
+  //! A dotted separator at the bottom of the status bar.
+  StatusBarLayerSeparatorModeDotted = 1,
+} StatusBarLayerSeparatorMode;
+
+//! The fixed height of the status bar, including separator height
+#define STATUS_BAR_LAYER_HEIGHT PBL_IF_RECT_ELSE(16, 24)
+
+//! Creates a new StatusBarLayer on the heap and initializes it with the default values.
+//!
+//! * Text color: \ref GColorBlack
+//! * Background color: \ref GColorWhite
+//! * Frame: `GRect(0, 0, screen_width, STATUS_BAR_LAYER_HEIGHT)`
+//! The status bar is automatically marked dirty after this operation.
+//! You can call \ref layer_set_frame() to create a StatusBarLayer of a different width.
+//!
+//! \code{.c}
+//! // Change the status bar width to make space for the action bar
+//! int16_t width = layer_get_bounds(root_layer).size.w - ACTION_BAR_WIDTH;
+//! GRect frame = GRect(0, 0, width, STATUS_BAR_LAYER_HEIGHT);
+//! layer_set_frame(status_bar_layer_get_layer(status_bar), frame);
+//! layer_add_child(root_layer, status_bar_layer_get_layer(status_bar));
+//! \endcode
+//! @return A pointer to the StatusBarLayer, which will be allocated to the heap,
+//! `NULL` if the StatusBarLayer could not be created
+StatusBarLayer *status_bar_layer_create(void);
+
+//! Destroys a StatusBarLayer previously created by status_bar_layer_create.
+//! @param status_bar_layer The StatusBarLayer to destroy
+void status_bar_layer_destroy(StatusBarLayer *status_bar_layer);
+
+//! Gets the "root" Layer of the status bar, which is the parent for the sub-
+//! layers used for its implementation.
+//! @param status_bar_layer Pointer to the StatusBarLayer for which to get the "root" Layer
+//! @return The "root" Layer of the status bar.
+//! @note The result is always equal to `(Layer *) status_bar_layer`.
+Layer *status_bar_layer_get_layer(StatusBarLayer *status_bar_layer);
+
+//! Gets background color of StatusBarLayer
+//! @param status_bar_layer The StatusBarLayer of which to get the color
+//! @return GColor of background color property
+GColor status_bar_layer_get_background_color(const StatusBarLayer *status_bar_layer);
+
+//! Gets foreground color of StatusBarLayer
+//! @param status_bar_layer The StatusBarLayer of which to get the color
+//! @return GColor of foreground color property
+GColor status_bar_layer_get_foreground_color(const StatusBarLayer *status_bar_layer);
+
+//! Sets the background and foreground colors of StatusBarLayer
+//! @param status_bar_layer The StatusBarLayer of which to set the colors
+//! @param background The new \ref GColor to set for background
+//! @param foreground The new \ref GColor to set for text and other foreground elements
+void status_bar_layer_set_colors(StatusBarLayer *status_bar_layer, GColor background,
+                                 GColor foreground);
+
+//! Sets the mode of the StatusBarLayer separator, to help divide it from content
+//! @param status_bar_layer The StatusBarLayer of which to set the separator mode
+//! @param mode Determines the separator mode
+void status_bar_layer_set_separator_mode(StatusBarLayer *status_bar_layer,
+                                         StatusBarLayerSeparatorMode mode);
+
+//! @} // group StatusBarLayer
 
 //! @addtogroup BitmapLayer
 //! \brief Layer that displays a bitmap image.
 //!
 //! ![](bitmap_layer.png)
 //! BitmapLayer is a Layer subtype that draws a GBitmap within its frame. It uses an alignment property
-//! to specify how to position the bitmap image with its frame. Optionally, when the
+//! to specify how to position the bitmap image within its frame. Optionally, when the
 //! background color is not GColorClear, it draws a solid background color behind the
 //! bitmap image, filling areas of the frame that are not covered by the bitmap image.
 //! Lastly, using the compositing mode property of the BitmapLayer, determines the way the
@@ -5223,11 +7348,16 @@ void bitmap_layer_set_background_color(BitmapLayer *bitmap_layer, GColor color);
 
 //! Sets the compositing mode of how the bitmap image is composited onto the
 //! BitmapLayer's background plane, or how it is composited onto what has been
-//! drawn beneath the BitmapLayer in case the background color is set to
-//! GColorClear.
+//! drawn beneath the BitmapLayer.
 //!
 //! The compositing mode only affects the drawing of the bitmap and not the
 //! drawing of the background color.
+//!
+//! For Aplite, there is no notion of "transparency" in the graphics system. However, the effect of
+//! transparency can be created by masking and using compositing modes.
+//!
+//! For Basalt, when drawing \ref GBitmap images, \ref GCompOpSet will be required to apply any
+//! transparency.
 //!
 //! The bitmap layer is automatically marked dirty after this operation.
 //! @param bitmap_layer The BitmapLayer for which to set the compositing mode
@@ -5253,6 +7383,8 @@ void bitmap_layer_set_compositing_mode(BitmapLayer *bitmap_layer, GCompOp mode);
 //! By default, the center of rotation in the source bitmap is the center of the bitmap but you can call \ref rot_bitmap_set_src_ic() to change the
 //! center of rotation.
 //!
+//! @note RotBitmapLayer has performance limitations that can degrade user
+//! experience (see \ref graphics_draw_rotated_bitmap). Use sparingly.
 //! @{
 
 struct RotBitmapLayer;
@@ -5400,6 +7532,166 @@ Window *number_window_get_window(NumberWindow *numberwindow);
 
 //! @} // group NumberWindow
 
+//! @addtogroup ActionMenu
+//! @{
+
+struct ActionMenuItem;
+typedef struct ActionMenuItem ActionMenuItem;
+
+struct ActionMenuLevel;
+typedef struct ActionMenuLevel ActionMenuLevel;
+
+typedef enum {
+  ActionMenuAlignTop = 0,
+  ActionMenuAlignCenter
+} ActionMenuAlign;
+
+typedef struct ActionMenu ActionMenu;
+
+//! Callback executed after the ActionMenu has closed, so memory may be freed.
+//! @param root_level the root level passed to the ActionMenu
+//! @param performed_action the ActionMenuItem for the action that was performed,
+//! NULL if the ActionMenu is closing without an action being selected by the user
+//! @param context the context passed to the ActionMenu
+typedef void (*ActionMenuDidCloseCb)(ActionMenu *menu,
+                                     const ActionMenuItem *performed_action,
+                                     void *context);
+
+//! enum value that controls whether menu items are displayed in a grid
+//! (similarly to the emoji replies) or in a single column (reminiscent of \ref MenuLayer)
+typedef enum {
+  ActionMenuLevelDisplayModeWide, //!< Each item gets its own row
+  ActionMenuLevelDisplayModeThin, //!< Grid view: multiple items per row
+} ActionMenuLevelDisplayMode;
+
+//! Callback executed when a given action is selected
+//! @param action_menu the action menu currently on screen
+//! @param action the action that was triggered
+//! @param context the context passed to the action menu
+//! @note the action menu is closed immediately after an action is performed,
+//! unless it is frozen in the ActionMenuPerformActionCb
+typedef void (*ActionMenuPerformActionCb)(ActionMenu *action_menu,
+                                          const ActionMenuItem *action,
+                                          void *context);
+
+//! Callback invoked for each item in an action menu hierarchy.
+//! @param item the current action menu item
+//! @param a caller-provided context callback
+typedef void (*ActionMenuEachItemCb)(const ActionMenuItem *item, void *context);
+
+//! Configuration struct for the ActionMenu
+typedef struct {
+  const ActionMenuLevel *root_level; //!< the root level of the ActionMenu
+  void *context; //!< a context pointer which will be accessbile when actions are performed
+  struct {
+    GColor background; //!< the color of the left column of the ActionMenu
+    GColor foreground; //!< the color of the individual "crumbs" that indicate menu depth
+  } colors;
+  ActionMenuDidCloseCb will_close; //!< Called immediately before the ActionMenu closes
+  ActionMenuDidCloseCb did_close; //!< a callback used to cleanup memory after the menu has closed
+  ActionMenuAlign align;
+} ActionMenuConfig;
+
+//! Getter for the label of a given \ref ActionMenuItem
+//! @param item the \ref ActionMenuItem of interest
+//! @return a pointer to the string label. NULL if invalid.
+char *action_menu_item_get_label(const ActionMenuItem *item);
+
+//! Getter for the action_data pointer of a given \ref ActionMenuitem.
+//! @see action_menu_level_add_action
+//! @param item the \ref ActionMenuItem of interest
+//! @return a pointer to the data. NULL if invalid.
+void *action_menu_item_get_action_data(const ActionMenuItem *item);
+
+//! Create a new action menu level with storage allocated for a given number of items
+//! @param max_items the max number of items that will be displayed at that level
+//! @note levels are freed alongside the whole hierarchy so no destroy API is provided.
+//! @note by default, levels are using ActionMenuLevelDisplayModeWide.
+//! Use \ref action_menu_level_set_display_mode to change it.
+//! @see action_menu_hierarchy_destroy
+ActionMenuLevel *action_menu_level_create(uint16_t max_items);
+
+//! Set the action menu display mode
+//! @param level The ActionMenuLevel whose display mode you want to change
+//! @param display_mode The display mode for the action menu (3 vs. 1 item per row)
+void action_menu_level_set_display_mode(ActionMenuLevel *level,
+                                        ActionMenuLevelDisplayMode display_mode);
+
+//! Add an action to an ActionLevel
+//! @param level the level to add the action to
+//! @param label the text to display for the action in the menu
+//! @param cb the callback that will be triggered when this action is actuated
+//! @param action_data data to pass to the callback for this action
+//! @return a reference to the new \ref ActionMenuItem on success, NULL if the level is full
+ActionMenuItem *action_menu_level_add_action(ActionMenuLevel *level,
+                                             const char *label,
+                                             ActionMenuPerformActionCb cb,
+                                             void *action_data);
+
+//! Add a child to this ActionMenuLevel
+//! @param level the parent level
+//! @param child the child level
+//! @param label the text to display in the action menu for this level
+//! @return a reference to the new \ref ActionMenuItem on success, NULL if the level is full
+ActionMenuItem *action_menu_level_add_child(ActionMenuLevel *level,
+                                            ActionMenuLevel *child,
+                                            const char *label);
+
+//! Destroy a hierarchy of ActionMenuLevels
+//! @param root the root level in the hierarchy
+//! @param each_cb a callback to call on every \ref ActionMenuItem in every level
+//! @param context a context pointer to pass to each_cb on invocation
+//! @note Typical implementations will cleanup memory allocated for the item label/data
+//!       associated with each item in the callback
+//! @note Hierarchy is traversed in post-order.
+//!       In other words, all children items are freed before their parent is freed.
+void action_menu_hierarchy_destroy(const ActionMenuLevel *root,
+                                   ActionMenuEachItemCb each_cb,
+                                   void *context);
+
+//! Get the context pointer this ActionMenu was created with
+//! @param action_menu A pointer to an ActionMenu
+//! @return the context pointer initially provided in the \ref ActionMenuConfig.
+//! NULL if none exists.
+void *action_menu_get_context(ActionMenu *action_menu);
+
+//! Get the root level of an ActionMenu
+//! @param action_menu the ActionMenu you want to know about
+//! @return a pointer to the root ActionMenuLevel for the given ActionMenu, NULL if invalid
+ActionMenuLevel *action_menu_get_root_level(ActionMenu *action_menu);
+
+//! Open a new ActionMenu.
+//! The ActionMenu acts much like a window. It fills the whole screen and handles clicks.
+//! @param config the configuration info for this new ActionMenu
+//! @return the new ActionMenu
+ActionMenu *action_menu_open(ActionMenuConfig *config);
+
+//! Freeze the ActionMenu. The ActionMenu will no longer respond to user input.
+//! @note this API should be used when waiting for asynchronous operation.
+//! @param action_menu the ActionMenu
+void action_menu_freeze(ActionMenu *action_menu);
+
+//! Unfreeze the ActionMenu previously frozen with \ref action_menu_freeze
+//! @param action_menu the ActionMenu to unfreeze
+void action_menu_unfreeze(ActionMenu *action_menu);
+
+//! Set the result window for an ActionMenu. The result window will be
+//! shown when the ActionMenu closes
+//! @param action_menu the ActionMenu
+//! @param result_window the window to insert, pass NULL to remove the current result window
+//! @note repeated call will result in only the last call to be applied, i.e. only
+//! one result window is ever set
+void action_menu_set_result_window(ActionMenu *action_menu, Window *result_window);
+
+//! Close the ActionMenu, whether it is frozen or not.
+//! @note this API can be used on a frozen ActionMenu once the data required to
+//! build the result window has been received and the result window has been set
+//! @param action_menu the ActionMenu to close
+//! @param animated whether or not show a close animation
+void action_menu_close(ActionMenu *action_menu, bool animated);
+
+//! @} // group ActionMenu
+
 //! @} // group Window
 
 //! @addtogroup Vibes
@@ -5487,9 +7779,121 @@ void light_enable(bool enable);
 
 //! @} // group UI
 
-//! Returns the current time in Unix Timestamp Format with Milliseconds
-//!     @param tloc if provided receives current Unix Time seconds portion
-//!     @param out_ms if provided receives current Unix Time milliseconds portion
-//!     @return Current Unix Time milliseconds portion
-uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
+//! @addtogroup Profiling
+//! @{
+
+//! @} // group Profiling
+
+//! @addtogroup StandardC Standard C
+//! @{
+
+//! @addtogroup StandardTime Time
+//! \brief Standard system time functions
+//!
+//! This module contains standard time functions and formatters for printing.
+//! Note that Pebble now supports both local time and UTC time
+//! (including timezones and daylight savings time).
+//! Most of these functions are part of the C standard library which is documented at
+//! https://sourceware.org/newlib/libc.html#Timefns
+//! @{
+
+#define TZ_LEN 6
+
+#define SECONDS_PER_MINUTE (60)
+
+#define MINUTES_PER_HOUR (60)
+
+#define SECONDS_PER_HOUR (SECONDS_PER_MINUTE * MINUTES_PER_HOUR)
+
+#define HOURS_PER_DAY (24)
+
+#define MINUTES_PER_DAY (HOURS_PER_DAY * MINUTES_PER_HOUR)
+
+#define SECONDS_PER_DAY (MINUTES_PER_DAY * SECONDS_PER_MINUTE)
+
+#if !defined(_WIN32)
+//! structure containing broken-down time for expressing calendar time
+//! (ie. Year, Month, Day of Month, Hour of Day) and timezone information
+struct tm {
+  int tm_sec;     /*!< Seconds. [0-60] (1 leap second) */
+  int tm_min;     /*!< Minutes. [0-59] */
+  int tm_hour;    /*!< Hours.  [0-23] */
+  int tm_mday;    /*!< Day. [1-31] */
+  int tm_mon;     /*!< Month. [0-11] */
+  int tm_year;    /*!< Years since 1900 */
+  int tm_wday;    /*!< Day of week. [0-6] */
+  int tm_yday;    /*!< Days in year.[0-365] */
+  int tm_isdst;   /*!< DST. [-1/0/1] */
+
+  int tm_gmtoff;  /*!< Seconds east of UTC */
+  char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
+};
+
+//! Format the time value at tm according to fmt and place the result in a buffer s of size max
+//! @param s A preallocation char array of size max
+//! @param maxsize the size of the array s
+//! @param format a formatting string
+//! @param tm_p A pointer to a struct tm containing a broken out time value
+//! @return The number of bytes placed in the array s, not including the null byte,
+//!   0 if the value does not fit.
+int strftime(char* s, size_t maxsize, const char* format, const struct tm* tm_p);
+#endif
+
+//! convert the time value pointed at by clock to a struct tm which contains the time
+//! adjusted for the local timezone
+//! @param timep A pointer to an object of type time_t that contains a time value
+//! @return A pointer to a struct tm containing the broken out time value adjusted
+//!   for the local timezone
+struct tm *localtime(const time_t *timep);
+
+//! convert the time value pointed at by clock to a struct tm
+//!   which contains the time expressed in Coordinated Universal Time (UTC)
+//! @param timep A pointer to an object of type time_t that contains a time value
+//! @return A pointer to a struct tm containing Coordinated Universal Time (UTC)
+struct tm *gmtime(const time_t *timep);
+
+//! convert the broken-down time structure to a timestamp
+//!   expressed in Coordinated Universal Time (UTC)
+//! @param tb A pointer to an object of type tm that contains broken-down time
+//! @return The number of seconds since epoch, January 1st 1970
+time_t mktime(struct tm *tb);
+
+//! Obtain the number of seconds since epoch.
+//! Note that the epoch is not adjusted for Timezones and Daylight Savings.
+//! @param tloc Optionally points to an address of a time_t variable to store the time in.
+//!     If you only want to use the return value, you may pass NULL into tloc instead
+//! @return The number of seconds since epoch, January 1st 1970
+time_t time(time_t *tloc);
+
+//! Obtain the number of seconds elapsed between beginning and end represented as a double.
+//! @param end A time_t variable representing some number of seconds since epoch, January 1st 1970
+//! @param beginning A time_t variable representing some number of seconds since epoch,
+//!     January 1st 1970. Note that end should be greater than beginning, but this is not enforced.
+//! @return The number of seconds elapsed between beginning and end.
+//! @note Pebble uses software floating point emulation.  Including this function which returns a
+//!     double will significantly increase the size of your binary.  We recommend directly
+//!     subtracting both timestamps to calculate a time difference.
+//!     \code{.c}
+//!     int difference = ts1 - ts2;
+//!     \endcode
+double difftime(time_t end, time_t beginning);
+
+//! Obtain the number of seconds and milliseconds part since the epoch.
+//!   This is a non-standard C function provided for convenience.
+//! @param tloc Optionally points to an address of a time_t variable to store the time in.
+//!   You may pass NULL into tloc if you don't need a time_t variable to be set
+//!   with the seconds since the epoch
+//! @param out_ms Optionally points to an address of a uint16_t variable to store the
+//!   number of milliseconds since the last second in.
+//!   If you only want to use the return value, you may pass NULL into out_ms instead
+//! @return The number of milliseconds since the last second
+uint16_t time_ms(time_t *t_utc, uint16_t *out_ms);
+
+//! Return the UTC time that corresponds to the start of today (midnight).
+//! @return the UTC time corresponding to the start of today (midnight)
+time_t time_start_of_today(void);
+
+//! @} // group StandardTime
+
+//! @} // group StandardC
 

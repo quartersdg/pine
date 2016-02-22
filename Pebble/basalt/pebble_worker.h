@@ -14,13 +14,17 @@
 #define __FILE_NAME__ __FILE__
 #endif
 
+//! Calculate the length of an array, based on the size of the element type.
+//! @param array The array to be evaluated.
+//! @return The length of the array.
 #define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 
-typedef struct ListNode {
-  struct ListNode* next;
-  struct ListNode* prev;
-} ListNode;
+struct tm;
+typedef struct tm tm;
 
+//! Determine whether a variable is signed or not.
+//! @param var The variable to evaluate.
+//! @return true if the variable is signed.
 #define IS_SIGNED(var) (__builtin_choose_expr( \
   __builtin_types_compatible_p(__typeof__(var), unsigned char), false, \
   __builtin_choose_expr( \
@@ -47,7 +51,11 @@ typedef struct ListNode {
 typedef enum {
   WATCH_INFO_MODEL_UNKNOWN, //!< Unknown model
   WATCH_INFO_MODEL_PEBBLE_ORIGINAL, //!< Original Pebble
-  WATCH_INFO_MODEL_PEBBLE_STEEL //!< Pebble Steel
+  WATCH_INFO_MODEL_PEBBLE_STEEL, //!< Pebble Steel
+  WATCH_INFO_MODEL_PEBBLE_TIME, //!< Pebble Time
+  WATCH_INFO_MODEL_PEBBLE_TIME_STEEL, //!< Pebble Time Steel
+  WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_14, //!< Pebble Time Round, 14mm lug size
+  WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_20, //!< Pebble Time Round, 20mm lug size
 } WatchInfoModel;
 
 //! The different watch colors.
@@ -57,12 +65,23 @@ typedef enum {
   WATCH_INFO_COLOR_WHITE = 2, //!< White
   WATCH_INFO_COLOR_RED = 3, //!< Red
   WATCH_INFO_COLOR_ORANGE = 4, //!< Orange
-  WATCH_INFO_COLOR_GREY = 5, //!< Grey
+  WATCH_INFO_COLOR_GRAY = 5, //!< Gray
   WATCH_INFO_COLOR_STAINLESS_STEEL = 6, //!< Stainless Steel
   WATCH_INFO_COLOR_MATTE_BLACK = 7, //!< Matte Black
   WATCH_INFO_COLOR_BLUE = 8, //!< Blue
   WATCH_INFO_COLOR_GREEN = 9, //!< Green
-  WATCH_INFO_COLOR_PINK = 10 //!< Pink
+  WATCH_INFO_COLOR_PINK = 10, //!< Pink
+  WATCH_INFO_COLOR_TIME_WHITE = 11, //!< Time White
+  WATCH_INFO_COLOR_TIME_BLACK = 12, //!< Time Black
+  WATCH_INFO_COLOR_TIME_RED = 13, //!< Time Red
+  WATCH_INFO_COLOR_TIME_STEEL_SILVER = 14, //!< Time Steel Silver
+  WATCH_INFO_COLOR_TIME_STEEL_BLACK = 15, //!< Time Steel Black
+  WATCH_INFO_COLOR_TIME_STEEL_GOLD = 16, //!< Time Steel Gold
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_14 = 17, //!< Time Round 14mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_14 = 18, //!< Time Round 14mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_20 = 19, //!< Time Round 20mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_20 = 20, //!< Time Round 20mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_ROSE_GOLD_14 = 21, //!< Time Round 14mm lug size, Rose Gold
 } WatchInfoColor;
 
 //! Data structure containing the version of the firmware running on the watch.
@@ -100,13 +119,23 @@ WatchInfoColor watch_info_get_color(void);
 //! @see \ref cos_lookup
 #define TRIG_MAX_ANGLE 0x10000
 
+//! Converts from a fixed point value representation to the equivalent value in degrees
+//! @see DEG_TO_TRIGANGLE
+//! @see TRIG_MAX_ANGLE
+#define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
+
+//! Converts from an angle in degrees to the equivalent fixed point value representation
+//! @see TRIGANGLE_TO_DEG
+//! @see TRIG_MAX_ANGLE
+#define DEG_TO_TRIGANGLE(angle) (((angle) * TRIG_MAX_ANGLE) / 360)
+
 //! Look-up the sine of the given angle from a pre-computed table.
 //! @param angle The angle for which to compute the cosine.
 //! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
 int32_t sin_lookup(int32_t angle);
 
 //! Look-up the cosine of the given angle from a pre-computed table.
-//! This is equivalent to calling `sin_lookup(angle + MAX_ANGLE / 4)`.
+//! This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
 //! @param angle The angle for which to compute the cosine.
 //! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
 int32_t cos_lookup(int32_t angle);
@@ -138,7 +167,7 @@ typedef enum {
 
 //! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
 //! time).
-//! Example results: "7:30" or "15:00". 
+//! Example results: "7:30" or "15:00".
 //! @note AM/PM are also outputted with the time if the user's preference is 12h time.
 //! @param[out] buffer A pointer to the buffer to copy the time string into
 //! @param size The maximum size of buffer
@@ -161,42 +190,106 @@ bool clock_is_24h_style(void);
 time_t clock_to_timestamp(WeekDay day, int hour, int minute);
 
 //! Checks if timezone is currently set, otherwise gmtime == localtime.
-//! @note This function was added in preparation of timezone support, 
-//! currently always returns false
 //! @return `true` if timezone has been set, false otherwise
 bool clock_is_timezone_set(void);
+
+//! The maximum length for a timezone full name (e.g. America/Chicago)
+#define TIMEZONE_NAME_LENGTH 32
+
+//! If timezone is set, copies the current timezone long name (e.g. America/Chicago)
+//! to user-provided buffer.
+//! @param timezone A pointer to the buffer to copy the timezone long name into
+//! @param buffer_size Size of the allocated buffer to copy the timezone long name into
+//! @note timezone buffer should be at least TIMEZONE_NAME_LENGTH bytes
+void clock_get_timezone(char *timezone, const size_t buffer_size);
 
 //! @} // group WallTime
 
 //! @addtogroup EventService
 //! @{
 
-//! @addtogroup BluetoothConnectionService
-//! \brief Determine when Pebble is connected to the phone
+//! @addtogroup ConnectionService
+//! \brief Determine what the Pebble watch is connected to
 //!
-//! The BluetoothConnectionService allows your app to know whether Pebble is connected to the phone.
-//! You can ask the system for this information at a given time or you can register
-//! to receive events every time Pebble connects or disconnects to the phone.
+//! The ConnectionService allows your app to learn about the apps the Pebble
+//! watch is connected to. You can ask the system for this information at a
+//! given time or you can register to receive events every time connection or
+//! disconnection events occur.
+//!
+//! It allows you to determine whether the watch is connected to the Pebble
+//! mobile app by subscribing to the pebble_app_connection_handler or by calling
+//! the connection_service_peek_pebble_app_connection function.  Note that when
+//! the Pebble app is connected, you can assume PebbleKit JS apps will also be
+//! running correctly.
+//!
+//! The service also allows you to determine if the Pebble watch can establish
+//! a connection to a PebbleKit companion app by subscribing to the
+//! pebblekit_connection_handler or by calling the
+//! connection_service_peek_pebblekit_connection function.  Today, due to
+//! architectural differences between iOS and Android, this will return true
+//! for Android anytime a connection with the Pebble mobile app is established
+//! (since PebbleKit messages are routed through the Android app). For iOS,
+//! this will return true when any PebbleKit companion app has established a
+//! connection with the Pebble watch (since companion app messages are routed
+//! directly to the watch)
+//!
 //! @{
 
-//! Callback type for bluetooth connection events
-//! @param connected true on bluetooth connection, false on disconnection
-typedef void (*BluetoothConnectionHandler)(bool connected);
+typedef void (*ConnectionHandler)(bool connected);
 
-//! Query the bluetooth connection service for the current connection status
-//! @return true if connected, false otherwise
-bool bluetooth_connection_service_peek(void);
+typedef struct {
+  //! callback to be executed when the connection state between the watch and
+  //! the phone app has changed. Note, if the phone App is connected, PebbleKit JS apps
+  //! will also be working correctly
+  ConnectionHandler pebble_app_connection_handler;
+  //! ID for callback to be executed on PebbleKit connection event
+  ConnectionHandler pebblekit_connection_handler;
+} ConnectionHandlers;
 
-//! Subscribe to the bluetooth event service. Once subscribed, the handler gets called
-//! on every bluetooth connection event.
-//! @param handler A callback to be executed on connection event
-void bluetooth_connection_service_subscribe(BluetoothConnectionHandler handler);
+//! Query the bluetooth connection service for the current Pebble app connection status
+//! @return true if the Pebble app is connected, false otherwise
+bool connection_service_peek_pebble_app_connection(void);
+
+//! Query the bluetooth connection service for the current PebbleKit connection status
+//! @return true if a PebbleKit companion app is connected, false otherwise
+bool connection_service_peek_pebblekit_connection(void);
+
+//! Subscribe to the connection event service. Once subscribed, the appropriate
+//! handler gets called based on the type of connection event and user provided
+//! handlers
+//! @param ConnectionHandlers A struct populated with the handlers to
+//! be called when the specified connection event occurs. If a given handler is
+//! NULL, no function will be called.
+void connection_service_subscribe(ConnectionHandlers conn_handlers);
 
 //! Unsubscribe from the bluetooth event service. Once unsubscribed, the previously registered
 //! handler will no longer be called.
+void connection_service_unsubscribe(void);
+
+//! @deprecated Backwards compatibility typedef for ConnectionHandler. New code
+//! should use ConnectionHandler directly.  This will be removed in a future
+//! version of the Pebble SDK.
+typedef ConnectionHandler BluetoothConnectionHandler;
+
+//! @deprecated Backward compatibility function for
+//! connection_service_peek_pebble_app_connection.  New code should use
+//! connection_service_peek_pebble_app_connection directly. This will be
+//! removed in a future version of the Pebble SDK
+bool bluetooth_connection_service_peek(void);
+
+//! @deprecated Backward compatibility function for
+//! connection_service_subscribe.  New code should use
+//! connection_service_subscribe directly. This will be removed in a future
+//! version of the Pebble SDK
+void bluetooth_connection_service_subscribe(ConnectionHandler handler);
+
+//! @deprecated Backward compatibility function for
+//! connection_service_unsubscribe.  New code should use
+//! connection_service_unsubscribe directly. This will be removed in a future
+//! version of the Pebble SDK
 void bluetooth_connection_service_unsubscribe(void);
 
-//! @} // group BluetoothConnectionService
+//! @} // group ConnectionService
 
 //! @addtogroup BatteryStateService
 //!
@@ -206,8 +299,9 @@ void bluetooth_connection_service_unsubscribe(void);
 //! its current charge level, whether it is plugged and charging. It uses the
 //! BatteryChargeState structure to describe the current power state of Pebble.
 //!
-//! Refer to /Examples/watchfaces/classio-battery-connection,
-//! which demonstrates using the battery state service in a watchface.
+//! Refer to the <a href="https://github.com/pebble-examples/classio-battery-connection">
+//! classio-battery-connection</a> example, which demonstrates using the battery state service
+//! in a watchface.
 //! @{
 
 //! Structure for retrieval of the battery charge state
@@ -247,8 +341,9 @@ BatteryChargeState battery_state_service_peek(void);
 //! perform measures at a given frequency, and transmit samples in batches to save CPU time
 //! and processing.
 //!
-//! For available code samples, see
-//! Examples/watchapps/feature_accel_discs
+//! For available code samples, see the
+//! <a href="https://github.com/pebble-examples/feature-accel-discs/">feature-accel-discs</a>
+//! example app.
 //! @{
 
 //! A single accelerometer sample for all three axes including timestamp and
@@ -278,6 +373,7 @@ typedef struct __attribute__((__packed__)) {
   int16_t z;
 } AccelRawData;
 
+//! Enumerated values defining the three accelerometer axes.
 typedef enum {
   //! Accelerometer's X axis. The positive direction along the X axis goes
   //! toward the right of the watch.
@@ -364,73 +460,24 @@ void accel_raw_data_service_subscribe(uint32_t samples_per_update, AccelRawDataH
 
 //! @addtogroup CompassService
 //!
-//! \brief The Compass Service combines information from Pebble's accelerometer and magnetometer to automatically calibrate
-//! the compass and transform the raw magnetic field information into a \ref CompassHeading, that is an angle to north.
+//!     \brief The Compass Service combines information from Pebble's accelerometer and
+//!     magnetometer to automatically calibrate
+//!     the compass and transform the raw magnetic field information into a \ref CompassHeading,
+//!     that is an angle to north. It also
+//!     provides magnetic north and information about its status and accuracy through the \ref
+//!     CompassHeadingData structure. The API is designed to also provide true north in a future
+//!     release.
 //!
-//! The Compass Service provides magnetic north and information about its status and accuracy through the \ref
-//! CompassHeadingData structure. The API is designed to also provide true north in a future release.
+//!     To learn more about the Compass Service and how to use it, read the
+//!     <a href="https://developer.getpebble.com/guides/pebble-apps/sensors/magnetometer/">
+//!     Determining Direction</a> guide.
 //!
-//! #### Calibration
-//! The Compass Service requires an initial calibration before it can return accurate results. Calibration is
-//! performed automatically by the system when required.
-//! The `compass_status` field indicates whether the Compass Service is calibrating.
-//! To help the calibration process, your application should
-//! show a message to the user asking them to move their wrists in different directions.
+//!     For available code samples, see the
+//!     <a href="https://github.com/pebble-examples/feature-compass">feature-compass</a> example.
 //!
-//! Refer to the compass examples for suggestions on how to implement this screen.
-//!
-//! #### Magnetic North and True North
-//!
-//! Depending on your location on earth, the measured heading towards magnetic north and
-//! true north can significantly differ. This is called magnetic variation or declination.
-//!
-//! Pebble does not currently automatically correct the magnetic heading to return a true heading, but the API is designed so that
-//! this feature can be added in the future and your applications will be able to automatically take advantage of it:
-//!
-//!  * If you need a precise heading in your application, we recommend that you use the `magnetic_heading` field and
-//! use a webservice to retrieve the declination at your current location.
-//!
-//!  * If you choose to not correct the heading yourself, we recommend that you use the `true_heading` field. This field will contain
-//! the magnetic heading if declination is not available, or the true heading if declination is available. The field
-//! `is_declination_valid` will be true when declination is available. You can use this information to tell the user whether
-//! you are showing magnetic north or true north.
-//!
-//! #### Battery Considerations
-//! Using the compass will turn on both Pebble's magnetometer and accelerometer. Those two devices will have a slight
-//! impact on battery life. A much more significant battery impact will be caused by redrawing the screen too often or
-//! performing CPU-intensive work every time the compass heading is updated.
-//!
-//! We recommend that you follow the following best practices to optimize for battery life:
-//!
-//! * If your application is already rapidly redrawing the display, use \ref compass_service_peek() to get the most recent
-//! available heading when drawing each frame.
-//! * If your UI updates only when the heading changes, use \ref compass_service_subscribe() and set an appropriate filter to reduce
-//! the number of events.
-//! * If you use \ref compass_service_subscribe() and then do not require the compass heading anymore, remember to call
-//! \ref compass_service_unsubscribe() to stop the Compass Service.
-//! * Finally, note that every time you use \ref compass_service_peek(), the Compass Service will turn on and stay
-//! active for a few seconds.
-//!
-//! #### Defining "up" on Pebble
-//! Compass readings are always relative to the current orientation of Pebble. Using the accelerometer, the
-//! Compass Service figures out what is the direction that the user is pointing at.
-//!
-//! If Pebble is held flat, the compass heading will be the angle between a vector to north and a vector going
-//! from the bottom to the top of Pebble in a plane parallel to the screen (the Y axis vector of the accelerometer).
-//! If the user lifts their arm so that Pebble is held vertical in front of them, compass heading will be relative to a vector
-//! going through Pebble (opposite to the Z axis vector of the accelerometer). If the user keeps bringing their arm up,
-//! effectively holding the Pebble upside down, the compass heading will be relative to a line from the top to the
-//! bottom of Pebble, in the plane of the screen (opposite to the Y axis vector of the accelerometer).
-//!
-//! #### Code Samples
-//! For available code samples, see `Examples/watchapps/feature_compass`.
 //! @{
 
-//! Converts from a fixed point value representation of trig_angle to the equivalent value in degrees
-#define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
-
-
-typedef struct __attribute__((__packed__)) {
+typedef struct PACKED {
  //! magnetic field along the x axis
  int16_t x;
  //! magnetic field along the y axis
@@ -545,21 +592,252 @@ void tick_timer_service_unsubscribe(void);
 
 //! @} // group TickTimerService
 
+//! @addtogroup HealthService
+//!
+//! \brief Get access to health information like step count, sleep totals, etc.
+//!
+//! The HealthService provides your app access to the step count and sleep activity of the user.
+//!
+//! @{
+
+//! Health metric values used to retrieve health data.
+//! For example, using \ref health_service_sum().
+typedef enum {
+  //! The number of steps counted.
+  HealthMetricStepCount,
+  //! The number of seconds spent active (i.e. not resting).
+  HealthMetricActiveSeconds,
+  //! The distance walked, in meters.
+  HealthMetricWalkedDistanceMeters,
+  //! The number of seconds spent sleeping.
+  HealthMetricSleepSeconds,
+  //! The number of sleep seconds in the 'restful' or deep sleep state.
+  HealthMetricSleepRestfulSeconds,
+} HealthMetric;
+
+//! Type used to represent HealthMetric values
+typedef int32_t HealthValue;
+
+//! Return the sum of a \ref HealthMetric's values over a time range.
+//! The `time_start` and `time_end` parameters define the range of time you want the sum for.
+//! @note The value returned will be an average since midnight, weighted for the length of the
+//! specified time range. This may change in the future.
+//! @param metric The metric to query for data.
+//! @param time_start UTC time of the earliest data item to incorporate into the sum.
+//! @param time_end UTC time of the most recent data item to incorporate into the sum.
+//! @return The sum of that metric over the given time range, if available.
+HealthValue health_service_sum(HealthMetric metric, time_t time_start, time_t time_end);
+
+//! Convenience wrapper for \ref health_service_sum() that returns the sum for today.
+//! @param metric The metric to query for data.
+//! @return The sum of that metric's data for today, if available.
+HealthValue health_service_sum_today(HealthMetric metric);
+
+//! Expresses a set of \ref HealthActivity values as a bitmask.
+typedef uint32_t HealthActivityMask;
+
+//! A mask value representing all available activities
+#define HealthActivityMaskAll ((HealthActivityRestfulSleep << 1) - 1)
+
+//! Health-related activities that can be accessed
+//! using \ref health_service_peek_current_activities()
+//! and \ref health_service_activities_iterate().
+typedef enum {
+  //! No special activity.
+  HealthActivityNone = 0,
+  //! The 'sleeping' activity.
+  HealthActivitySleep = 1 << 0,
+  //! The 'restful sleeping' activity.
+  HealthActivityRestfulSleep = 1 << 1,
+} HealthActivity;
+
+//! Return a \ref HealthActivityMask containing a set of bits, one set for each
+//! activity that is currently active.
+//! @return A bitmask with zero or more \ref HealthActivityMask bits set as appropriate.
+HealthActivityMask health_service_peek_current_activities(void);
+
+//! Callback used by \ref health_service_activities_iterate().
+//! @param activity Which activity the caller is being informed about.
+//! @param time_start Start UTC time of the activity.
+//! @param time_end End UTC time of the activity.
+//! @param context The `context` parameter initially passed
+//!     to \ref health_service_activities_iterate().
+//! @return `true` if you are interested in more activities, or `false` to stop iterating.
+typedef bool (*HealthActivityIteratorCB)(HealthActivity activity,
+                                         time_t time_start, time_t time_end,
+                                         void *context);
+
+//! Iteration direction, passed to \ref health_service_activities_iterate().
+//! When iterating backwards (`HealthIterationDirectionPast`), activities that have a greater value
+//! for `time_end` come first.
+//! When iterating forward (`HealthIterationDirectionFuture`), activities that have a smaller value
+//! for `time_start` come first.
+typedef enum {
+  //! Iterate into the past.
+  HealthIterationDirectionPast,
+  //! Iterate into the future.
+  HealthIterationDirectionFuture,
+} HealthIterationDirection;
+
+//! Iterates backwards or forward within a given time span to list all recorded activities.
+//! For example, this can be used to find the last recorded sleep phase or all deep sleep phases in
+//! a given time range. Any activity that overlaps with `time_start` and `time_end` will be
+//! included, even if the start time starts before `time_start` or end time ends after `time_end`.
+//! @param activity_mask A bitmask containing set of activities you are interested in.
+//! @param time_start UTC time of the earliest time you are interested in.
+//! @param time_end UTC time of the latest time you are interested in.
+//! @param direction The direction in which to iterate.
+//! @param callback Developer-supplied callback that is called for each activity iterated over.
+//! @param context Developer-supplied context pointer that is passed to the callback.
+void health_service_activities_iterate(HealthActivityMask activity_mask,
+                                       time_t time_start, time_t time_end,
+                                       HealthIterationDirection direction,
+                                       HealthActivityIteratorCB callback, void *context);
+
+//! Possible values returned by \ref health_service_metric_accessible().
+//! The values are used in combination as a bitmask.
+//! For example, to check if any data is available for a given request use:
+//! bool any_data_available = value & HealthServiceAccessibilityMaskAvailable;
+typedef enum {
+  //! Return values are available and represent the collected health information.
+  HealthServiceAccessibilityMaskAvailable = 1 << 0,
+  //! The user hasn't granted permission.
+  HealthServiceAccessibilityMaskNoPermission = 1 << 1,
+  //! The queried combination of time span and \ref HealthMetric or \ref HealthActivityMask
+  //! is currently unsupported.
+  HealthServiceAccessibilityMaskNotSupported = 1 << 2,
+  //! No samples were recorded for the given time span.
+  HealthServiceAccessibilityMaskNotAvailable = 1 << 3,
+} HealthServiceAccessibilityMask;
+
+//! Check if a certain combination of metric and time span is accessible by returning a
+//! value of \ref HealthServiceAccessibilityMask. Developers should check if the return value is
+//! \ref HealthServiceAccessibilityMaskAvailable before calling any other HealthService APIs that
+//! involve the given metric.
+//! @param metric The metric to query for data.
+//! @param time_start Earliest UTC time you are interested in.
+//! @param time_end Latest UTC time you are interested in.
+//! @return A \ref HealthServiceAccessibilityMask representing the accessible metrics
+//! in this time range.
+HealthServiceAccessibilityMask health_service_metric_accessible(
+    HealthMetric metric, time_t start_time, time_t end_time);
+
+//! Check if a certain combination of metric, \ref HealthActivityMask and time span is
+//! accessible. Developers should check if the return value is
+//! \ref HealthServiceAccessibilityMaskAvailable before calling any other HealthService APIs that
+//! involve the given activities.
+//! @param activity_mask A bitmask of activities you are interested in.
+//! @param time_start Earliest UTC time you are interested in.
+//! @param time_end Latest UTC time you are interested in.
+//! @return A \ref HealthServiceAccessibilityMask representing which of the
+//! passed \ref HealthActivityMask values are available under the given constraints.
+HealthServiceAccessibilityMask health_service_any_activity_accessible(
+    HealthActivityMask activity_mask, time_t start_time, time_t end_time);
+
+//! Health event enum. Passed into the \ref HealthEventHandler.
+typedef enum {
+  //! All data is considered as outdated and apps should re-read all health data.
+  //! This happens after an app is subscribed via \ref health_service_events_subscribe(),
+  //! on a change of the day, or in other cases that significantly change the underlying data.
+  HealthEventSignificantUpdate = 0,
+  //! Recent values around \ref HealthMetricStepCount, \ref HealthMetricActiveSeconds,
+  //! or \ref HealthMetricWalkedDistanceMeters have changed.
+  HealthEventMovementUpdate = 1,
+  //! Recent values around \ref HealthMetricSleepSeconds, \ref HealthMetricSleepRestfulSeconds,
+  //! \ref HealthActivitySleep, and \ref HealthActivityRestfulSleep changed.
+  HealthEventSleepUpdate = 2,
+} HealthEventType;
+
+//! Developer-supplied event handler, called when a health-related event occurs after subscribing
+//! via \ref health_service_events_subscribe();
+//! @param event The type of health-related event that occured.
+//! @param context The developer-supplied context pointer.
+typedef void (*HealthEventHandler)(HealthEventType event, void *context);
+
+//! Subscribe to HealthService events. This allocates a cache on the application's heap of up
+//! to 2048 bytes that will be de-allocated if you call \ref health_service_events_unsubscribe().
+//! If there's not enough heap available, this function will return `false` and will not
+//! subscribe to any events.
+//! @param handler Developer-supplied event handler function.
+//! @param context Developer-supplied context pointer.
+//! @return `true` on success, `false` on failure.
+bool health_service_events_subscribe(HealthEventHandler handler, void *context);
+
+//! Unsubscribe from HealthService events.
+//! @return `true` on success, `false` on failure.
+bool health_service_events_unsubscribe(void);
+
+//! Light level enum
+typedef enum AmbientLightLevel {
+  AmbientLightLevelUnknown = 0,
+  AmbientLightLevelVeryDark,
+  AmbientLightLevelDark,
+  AmbientLightLevelLight,
+  AmbientLightLevelVeryLight,
+} AmbientLightLevel;
+
+//! Structure representing a single minute data record returned
+//! by \ref health_service_get_minute_history().
+//! The `orientation` field encodes the angle of the watch in the x-y plane (the "yaw") in the
+//! lower 4 bits (360 degrees linearly mapped to 1 of 16 different values) and the angle to the
+//! z axis (the "pitch") in the upper 4 bits.
+//! The `vmc` value is a measure of the total amount of movement seen by the watch. More vigorous
+//! movement yields higher VMC values.
+typedef struct {
+  uint8_t steps;              //!< Number of steps taken in this minute.
+  uint8_t orientation;        //!< Quantized average orientation.
+  uint16_t vmc;               //!< Vector Magnitude Counts (vmc).
+  bool is_invalid: 1;         //!< `true` if the item doesn't represents actual data
+                              //!< and should be ignored.
+  AmbientLightLevel light: 3; //!< Instantaneous light level during this minute.
+  uint8_t padding: 4;
+  uint8_t reserved[7];        //!< Reserved for future use.
+} HealthMinuteData;
+
+//! Return historical minute data records. This fills in the `minute_data` array parameter with
+//! minute by minute statistics of the user's steps, average watch orientation, etc. The data is
+//! returned in time order, with the oldest minute data returned at `minute_data[0]`.
+//! @param minute_data Pointer to an array of \ref HealthMinuteData records that will be filled
+//!      in with the historical minute data.
+//! @param max_records The maximum number of records the `minute_data` array can hold.
+//! @param[in,out] time_start On entry, the UTC time of the first requested record. On exit,
+//!      the UTC time of the first second of the first record actually returned.
+//!      If `time_start` on entry is somewhere in the middle of a minute interval, this function
+//!      behaves as if the caller passed in the start of that minute.
+//! @param[in,out] time_end On entry, the UTC time of the end of the requested range of records. On
+//!      exit, the UTC time of the end of the last record actually returned (i.e. start time of last
+//!      record + 60). If `time_end` on entry is somewhere in the middle of a minute interval, this
+//!      function behaves as if the caller passed in the end of that minute.
+//! @return Actual number of records returned. May be less then the maximum requested.
+//! @note If the return value is zero, `time_start` and `time_end` are meaningless.
+//!      It's not guaranteed that all records contain valid data, even if the return value is
+//!      greater than zero. Check `HealthMinuteData.is_invalid` to see if a given record contains
+//!      valid data.
+uint32_t health_service_get_minute_history(HealthMinuteData *minute_data, uint32_t max_records,
+                                           time_t *time_start, time_t *time_end);
+
+//! Convenience macro to switch between two expressions depending on health support.
+//! On platforms with health support the first expression will be chosen, the second otherwise.
+#define PBL_IF_HEALTH_ELSE(if_true, if_false) (if_true)
+
+//! @} // group HealthService
+
 //! @} // group EventService
 
 //! @addtogroup DataLogging
 //! \brief Enables logging data asynchronously to a mobile app
 //!
-//! In Pebble OS, data logging is a data storage and transfer subsystem that allows watchapps to save
-//! data on non-volatile storage devices when the phone is not available to process it. The API provides
-//! your watchapp with a mechanism for short-term data buffering for asynchronous data transmission to
-//! a mobile app.
+//! In Pebble OS, data logging is a data storage and transfer subsystem that allows watchapps to
+//! save data on non-volatile storage devices when the phone is not available to process it. The
+//! API provides your watchapp with a mechanism for short-term data buffering for asynchronous data
+//! transmission to a mobile app.
 //!
-//! Using this API, your Pebble watchapp can create an arbitrary number of logs, but you’re limited in
-//! the amount of storage space you can use. Note that approximately 640K is available for data
-//! logging, which is shared among all watchapps that use it. This value is subject to change in the 
-//! future. When the data spool is full, an app will start overwriting its own data. An app cannot 
-//! overwrite another apps's data. However, the other app might have 0 bytes for data logging.
+//! Using this API, your Pebble watchapp can create an arbitrary number of logs, but you’re
+//! limited in the amount of storage space you can use. Note that approximately 640K is available
+//! for data logging, which is shared among all watchapps that use it. This value is subject to
+//! change in the future. When the data spool is full, an app will start overwriting its own data.
+//! An app cannot overwrite another apps's data. However, the other app might have 0 bytes for data
+//! logging.
 //!
 //! Your app can log data to a session, either creating, adding or deleting data to that session.
 //! The data is then sent to the associated phone application at the earliest convenience.
@@ -569,14 +847,15 @@ void tick_timer_service_unsubscribe(void);
 //!
 //! For example:
 //!
-//! To create a data logging session for 4-byte unsigned integers with a tag of 0x1234, you would do this:
-//! \code{.c}
+//! To create a data logging session for 4-byte unsigned integers with a tag of 0x1234, you would
+//! do this: \code{.c}
 //!
-//! DataLoggingSessionRef logging_session = data_logging_create(0x1234, DATA_LOGGING_UINT, 4, false);
+//! DataLoggingSessionRef logging_session = data_logging_create(0x1234, DATA_LOGGING_UINT, 4,
+//!                                                             false);
 //!
 //! // Fake creating some data and logging it to the session.
-//! uint32_t data[] = { 1, 2, 3, 4 };
-//! data_logging_log(logging_session, &data, 4);
+//! uint32_t data[] = { 1, 2, 3};
+//! data_logging_log(logging_session, &data, 3);
 //!
 //! // Fake creating more data and logging that as well.
 //! uint32_t data2[] = { 1, 2 };
@@ -586,17 +865,16 @@ void tick_timer_service_unsubscribe(void);
 //! data_logging_finish(logging_session);
 //! \endcode
 //!
-//! For code samples, refer to Examples/data-logging-demo.
 //! @{
 
 typedef void *DataLoggingSessionRef;
 
-//! The different types of session data that Pebble supports. This type describes the type of a singular item in the data
-//! session. Every item in a given session is the same type and size.
+//! The different types of session data that Pebble supports. This type describes the type of a
+//! singular item in the data session. Every item in a given session is the same type and size.
 typedef enum {
-  //! Array of bytes. Remember that this is the type of a single item in the logging session, so using this
-  //! type means you'll be logging multiple byte arrays (each a fixed length described by item_length) for the
-  //! duration of the session.
+  //! Array of bytes. Remember that this is the type of a single item in the logging session, so
+  //! using this type means you'll be logging multiple byte arrays (each a fixed length described
+  //! by item_length) for the duration of the session.
   DATA_LOGGING_BYTE_ARRAY = 0,
   //! Unsigned integer. This may be a 1, 2, or 4 byte integer depending on the item_length parameter
   DATA_LOGGING_UINT = 2,
@@ -604,13 +882,15 @@ typedef enum {
   DATA_LOGGING_INT = 3,
 } DataLoggingItemType;
 
+//! Enumerated values describing the possible outcomes of data logging operations
 typedef enum {
   DATA_LOGGING_SUCCESS = 0, //!< Successful operation
   DATA_LOGGING_BUSY, //!< Someone else is writing to this logging session
   DATA_LOGGING_FULL, //!< No more space to save data
   DATA_LOGGING_NOT_FOUND, //!< The logging session does not exist
   DATA_LOGGING_CLOSED, //!< The logging session was made inactive
-  DATA_LOGGING_INVALID_PARAMS //!< An invalid parameter was passed to one of the functions
+  DATA_LOGGING_INVALID_PARAMS, //!< An invalid parameter was passed to one of the functions
+  DATA_LOGGING_INTERNAL_ERR //!< An internal error occurred
 } DataLoggingResult;
 
 //! Create a new data logging session.
@@ -619,32 +899,44 @@ typedef enum {
 //! @param item_type The type of data stored in this logging session
 //! @param item_length The size of a single data item in bytes
 //! @param resume True if we want to look for a logging session of the same tag and
-//!   resume logging to it. If this is false and a session with the specified tag exists, that session will
-//!   be closed and a new session will be opened.
+//!   resume logging to it. If this is false and a session with the specified tag exists, that
+//!   session will be closed and a new session will be opened.
 //! @return An opaque reference to the data logging session
-DataLoggingSessionRef
-data_logging_create(uint32_t tag, DataLoggingItemType item_type, uint16_t item_length, bool resume);
+DataLoggingSessionRef data_logging_create(uint32_t tag, DataLoggingItemType item_type,
+                                          uint16_t item_length, bool resume);
 
-//! Delete a data logging_session. Logging data is kept until it has successfully been transferred over to the
-//! phone, but no data may be added to the session after this function is called.
+//! Finish up a data logging_session. Logging data is kept until it has successfully been
+//! transferred over to the phone, but no data may be added to the session after this function is
+//! called.
 //!
-//! @param logging_session a reference to the data logging session previously allocated using data_logging_create
+//! @param logging_session a reference to the data logging session previously allocated using
+//!   data_logging_create
 void data_logging_finish(DataLoggingSessionRef logging_session);
 
 //! Add data to the data logging session. If a phone is available, the data is sent directly
-//! to the phone. Otherwise, it is saved to the watch storage until the watch is connected to a phone.
+//! to the phone. Otherwise, it is saved to the watch storage until the watch is connected to a
+//! phone.
 //!
 //! @param logging_session a reference to the data logging session you want to add the data to
 //! @param data a pointer to the data buffer that contains multiple items
-//! @param num_items the number of items to log. This means data must be at least (num_items * item_length)
-//!                  long in bytes
-//! @return DATA_LOGGING_SUCCESS on success
-//!         DATA_LOGGING_NOT_FOUND if the logging session is invalid
-//!         DATA_LOGGING_CLOSED if the sesion is not active
-//!         DATA_LOGGING_BUSY if the sesion is not available for writing
-//!         DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL
-DataLoggingResult
-data_logging_log(DataLoggingSessionRef logging_session, const void *data, uint32_t num_items);
+//! @param num_items the number of items to log. This means data must be at least
+//!    (num_items * item_length) long in bytes
+//! @return
+//! DATA_LOGGING_SUCCESS on success
+//!
+//! @return
+//! DATA_LOGGING_NOT_FOUND if the logging session is invalid
+//!
+//! @return
+//! DATA_LOGGING_CLOSED if the sesion is not active
+//!
+//! @return
+//! DATA_LOGGING_BUSY if the sesion is not available for writing
+//!
+//! @return
+//! DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL
+DataLoggingResult data_logging_log(DataLoggingSessionRef logging_session, const void *data,
+                                   uint32_t num_items);
 
 //! @} // group DataLogging
 
@@ -675,6 +967,8 @@ typedef struct __attribute__((__packed__)) {
 
 #define UUID_SIZE 16
 
+//! Make a Uuid object from sixteen bytes.
+//! @return A Uuid structure representing the bytes p0 to p15.
 #define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) ((Uuid) {p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
 
 //! Creates a Uuid from an array of bytes with 16 bytes in Big Endian order.
@@ -696,8 +990,8 @@ typedef struct __attribute__((__packed__)) {
 bool uuid_equal(const Uuid *uu1, const Uuid *uu2);
 
 //! Writes UUID in a string form into buffer that looks like the following...
-//! {12345678-1234-5678-1234-567812345678}
-//! @param uuid The Uuid to write
+//! {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
+//! @param uuid The Uuid to write into the buffer as human-readable string
 //! @param buffer Memory to write the string to. Must be at least \ref UUID_STRING_BUFFER_LENGTH bytes long.
 void uuid_to_string(const Uuid *uuid, char *buffer);
 
@@ -1205,11 +1499,7 @@ void worker_launch_app(void);
 //! @} // group Worker
 
 //! @addtogroup AppWorker
-//!
-//! \brief Managing the app worker
-//!
-//! This modules contains functions for and managing the worker task, querying its status, and communicating with it
-//!
+//!   \brief Runs in the background, and can communicate with the foreground app.
 //! @{
 
 //! Possible error codes from app_worker_launch, app_worker_kill
@@ -1272,6 +1562,7 @@ void app_worker_send_message(uint8_t type, AppWorkerMessage *data);
 //! @} // group AppWorker
 
 //! @addtogroup Timer
+//!   \brief Can be used to execute some code at some point in the future.
 //! @{
 
 //! Waits for a certain amount of milliseconds
@@ -1289,6 +1580,7 @@ typedef void (*AppTimerCallback)(void* data);
 //! @param timeout_ms The expiry time in milliseconds from the current time
 //! @param callback The callback that gets called at expiry time
 //! @param callback_data The data that will be passed to callback
+//! @return A pointer to an `AppTimer` that can be used to later reschedule or cancel this timer
 AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void* callback_data);
 
 //! Reschedules an already running timer for some point in the future.
@@ -1297,7 +1589,8 @@ AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, voi
 //! @return true if the timer was rescheduled, false if the timer has already elapsed
 bool app_timer_reschedule(AppTimer *timer_handle, uint32_t new_timeout_ms);
 
-//! Cancels an already registered timer. Once cancelled the the handle may longer be used for any purpose.
+//! Cancels an already registered timer.
+//! Once cancelled the handle may no longer be used for any purpose.
 void app_timer_cancel(AppTimer *timer_handle);
 
 //! @} // group Timer
@@ -1337,7 +1630,7 @@ size_t heap_bytes_used(void);
 //! retrieve values from the phone, it provides you with a much faster way to restore state.
 //! In addition, it draws less power from the battery.
 //!
-//! Note that the size of all persisted values cannot exceed 4K.
+//! Note that the size of all persisted values cannot exceed 4K per app.
 //! @{
 
 //! The maximum size of a persist value in bytes
@@ -1383,6 +1676,9 @@ typedef enum StatusCode {
 
   //! Another operation prevented this one.
   E_BUSY = -11,
+
+  //! Operation not completed; try again.
+  E_AGAIN = -12,
 
   //! Equivalent of boolean true.
   S_TRUE = 1,
@@ -1478,9 +1774,119 @@ status_t persist_delete(const uint32_t key);
 
 //! @} // group Foundation
 
-//! Returns the current time in Unix Timestamp Format with Milliseconds
-//!     @param tloc if provided receives current Unix Time seconds portion
-//!     @param out_ms if provided receives current Unix Time milliseconds portion
-//!     @return Current Unix Time milliseconds portion
-uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
+//! @addtogroup Profiling
+//! @{
+
+//! @} // group Profiling
+
+//! @addtogroup StandardC Standard C
+//! @{
+
+//! @addtogroup StandardTime Time
+//! \brief Standard system time functions
+//!
+//! This module contains standard time functions and formatters for printing.
+//! Note that Pebble now supports both local time and UTC time
+//! (including timezones and daylight savings time).
+//! Most of these functions are part of the C standard library which is documented at
+//! https://sourceware.org/newlib/libc.html#Timefns
+//! @{
+
+#define TZ_LEN 6
+
+#define SECONDS_PER_MINUTE (60)
+
+#define MINUTES_PER_HOUR (60)
+
+#define SECONDS_PER_HOUR (SECONDS_PER_MINUTE * MINUTES_PER_HOUR)
+
+#define HOURS_PER_DAY (24)
+
+#define MINUTES_PER_DAY (HOURS_PER_DAY * MINUTES_PER_HOUR)
+
+#define SECONDS_PER_DAY (MINUTES_PER_DAY * SECONDS_PER_MINUTE)
+
+//! structure containing broken-down time for expressing calendar time
+//! (ie. Year, Month, Day of Month, Hour of Day) and timezone information
+struct tm {
+  int tm_sec;     /*!< Seconds. [0-60] (1 leap second) */
+  int tm_min;     /*!< Minutes. [0-59] */
+  int tm_hour;    /*!< Hours.  [0-23] */
+  int tm_mday;    /*!< Day. [1-31] */
+  int tm_mon;     /*!< Month. [0-11] */
+  int tm_year;    /*!< Years since 1900 */
+  int tm_wday;    /*!< Day of week. [0-6] */
+  int tm_yday;    /*!< Days in year.[0-365] */
+  int tm_isdst;   /*!< DST. [-1/0/1] */
+
+  int tm_gmtoff;  /*!< Seconds east of UTC */
+  char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
+};
+
+//! Format the time value at tm according to fmt and place the result in a buffer s of size max
+//! @param s A preallocation char array of size max
+//! @param maxsize the size of the array s
+//! @param format a formatting string
+//! @param tm_p A pointer to a struct tm containing a broken out time value
+//! @return The number of bytes placed in the array s, not including the null byte,
+//!   0 if the value does not fit.
+int strftime(char* s, size_t maxsize, const char* format, const struct tm* tm_p);
+
+//! convert the time value pointed at by clock to a struct tm which contains the time
+//! adjusted for the local timezone
+//! @param timep A pointer to an object of type time_t that contains a time value
+//! @return A pointer to a struct tm containing the broken out time value adjusted
+//!   for the local timezone
+struct tm *localtime(const time_t *timep);
+
+//! convert the time value pointed at by clock to a struct tm
+//!   which contains the time expressed in Coordinated Universal Time (UTC)
+//! @param timep A pointer to an object of type time_t that contains a time value
+//! @return A pointer to a struct tm containing Coordinated Universal Time (UTC)
+struct tm *gmtime(const time_t *timep);
+
+//! convert the broken-down time structure to a timestamp
+//!   expressed in Coordinated Universal Time (UTC)
+//! @param tb A pointer to an object of type tm that contains broken-down time
+//! @return The number of seconds since epoch, January 1st 1970
+time_t mktime(struct tm *tb);
+
+//! Obtain the number of seconds since epoch.
+//! Note that the epoch is not adjusted for Timezones and Daylight Savings.
+//! @param tloc Optionally points to an address of a time_t variable to store the time in.
+//!     If you only want to use the return value, you may pass NULL into tloc instead
+//! @return The number of seconds since epoch, January 1st 1970
+time_t time(time_t *tloc);
+
+//! Obtain the number of seconds elapsed between beginning and end represented as a double.
+//! @param end A time_t variable representing some number of seconds since epoch, January 1st 1970
+//! @param beginning A time_t variable representing some number of seconds since epoch,
+//!     January 1st 1970. Note that end should be greater than beginning, but this is not enforced.
+//! @return The number of seconds elapsed between beginning and end.
+//! @note Pebble uses software floating point emulation.  Including this function which returns a
+//!     double will significantly increase the size of your binary.  We recommend directly
+//!     subtracting both timestamps to calculate a time difference.
+//!     \code{.c}
+//!     int difference = ts1 - ts2;
+//!     \endcode
+double difftime(time_t end, time_t beginning);
+
+//! Obtain the number of seconds and milliseconds part since the epoch.
+//!   This is a non-standard C function provided for convenience.
+//! @param tloc Optionally points to an address of a time_t variable to store the time in.
+//!   You may pass NULL into tloc if you don't need a time_t variable to be set
+//!   with the seconds since the epoch
+//! @param out_ms Optionally points to an address of a uint16_t variable to store the
+//!   number of milliseconds since the last second in.
+//!   If you only want to use the return value, you may pass NULL into out_ms instead
+//! @return The number of milliseconds since the last second
+uint16_t time_ms(time_t *t_utc, uint16_t *out_ms);
+
+//! Return the UTC time that corresponds to the start of today (midnight).
+//! @return the UTC time corresponding to the start of today (midnight)
+time_t time_start_of_today(void);
+
+//! @} // group StandardTime
+
+//! @} // group StandardC
 

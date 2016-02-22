@@ -66,6 +66,7 @@ void layer_destroy(Layer* layer) {
 }
 
 void layer_mark_dirty(Layer *layer) {
+    if (!layer) return;
 	layer->base.dirty = true;
 	pine_something_is_dirty();
 }
@@ -89,7 +90,7 @@ GRect layer_get_relative_frame(Layer *layer, const GRect r) {
 
 GRect layer_get_frame(const Layer *layer) {
 	if (layer->base.parent)
-		return layer_get_relative_frame(layer->base.parent, layer->base.bounds);
+		return layer_get_relative_frame((Layer*)layer->base.parent, layer->base.bounds);
 	return layer->base.bounds;
 }
 
