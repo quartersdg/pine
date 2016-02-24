@@ -218,6 +218,8 @@ int IsButton(int x, int y)
 	return -1;
 }
 
+extern "C" int watch_base;
+
 BOOL CALLBACK DialogProc(HWND hwnd,
 	UINT message,
 	WPARAM wParam,
@@ -242,6 +244,13 @@ BOOL CALLBACK DialogProc(HWND hwnd,
 		case IDM_BLUETOOTH:
 			PineFireEvent(PINE_EVENT_BLUETOOTH);
 			break;
+        case IDM_WATCH_BLACK:
+        case IDM_WATCH_RED:
+        case IDM_WATCH_ORANGE:
+        case IDM_WATCH_SILVER:
+        case IDM_WATCH_WHITE:
+            watch_base = wParam - IDM_WATCH_BLACK;
+            break;
 		case IDM_BATTERY:
 			DialogBox(hInst, MAKEINTRESOURCE(IDD_BATTERY_CHANGE), hwnd, BatteryDialogProc);
 			break;

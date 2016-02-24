@@ -1,5 +1,5 @@
 #pragma once
-
+#define __attribute__(A)
 #include "pebble_fonts.h"
 #include "src/resource_ids.auto.h"
 
@@ -31,8 +31,10 @@
 //! @return The length of the array.
 #define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
 
+#if !defined(_WIN32)
 struct tm;
 typedef struct tm tm;
+#endif
 
 //! Determine whether a variable is signed or not.
 //! @param var The variable to evaluate.
@@ -1247,8 +1249,13 @@ void app_log(uint8_t log_level, const char* src_filename, int src_line_number, c
 //! @param level The log level to log output as
 //! @param fmt A C formatting string
 //! @param args The arguments for the formatting string
+#if defined(_WIN32)
+#define APP_LOG(level, fmt, ...)                                \
+  app_log(level, __FILE_NAME__, __LINE__, fmt, __VA_ARGS__)
+#else
 #define APP_LOG(level, fmt, args...)                                \
   app_log(level, __FILE_NAME__, __LINE__, fmt, ## args)
+#endif
 
 //! Suggested log level values
 typedef enum {
@@ -7804,6 +7811,8 @@ void light_enable(bool enable);
 
 #define SECONDS_PER_DAY (MINUTES_PER_DAY * SECONDS_PER_MINUTE)
 
+#if !defined(_WIN32)
+
 //! structure containing broken-down time for expressing calendar time
 //! (ie. Year, Month, Day of Month, Hour of Day) and timezone information
 struct tm {
@@ -7829,7 +7838,7 @@ struct tm {
 //! @return The number of bytes placed in the array s, not including the null byte,
 //!   0 if the value does not fit.
 int strftime(char* s, size_t maxsize, const char* format, const struct tm* tm_p);
-
+#endif
 //! convert the time value pointed at by clock to a struct tm which contains the time
 //! adjusted for the local timezone
 //! @param timep A pointer to an object of type time_t that contains a time value

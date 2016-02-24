@@ -9,6 +9,8 @@ AppProjectEntry = """
     <ClCompile Include="{}">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;{};%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;{};%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
 """;
 

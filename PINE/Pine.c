@@ -19,43 +19,114 @@ struct GContext {
     GCompOp comp_mode;
 } gs_ctx;
 
-int PebbleColorToBrush(GColor c)
-{
-    switch (c.argb) {
-    case GColorBlackARGB8:
-        return BLACK_BRUSH;
-        break;
-    case GColorWhiteARGB8:
-        return WHITE_BRUSH;
-        break;
+typedef struct PebbleColorToObject {
+    uint32_t    RGB;
+    HBRUSH      Brush;
+    HBRUSH      Pen;
+    uint8_t     Pebble_argb;
+} PebbleColorToObject;
+PebbleColorToObject PebbleColorObjects[] = {
+    { 0x000000,0,0,GColorBlackARGB8 },
+    { 0x000055,0,0,GColorOxfordBlueARGB8 },
+    { 0x0000AA,0,0,GColorDukeBlueARGB8 },
+    { 0x0000FF,0,0,GColorBlueARGB8 },
+    { 0x005500,0,0,GColorDarkGreenARGB8 },
+    { 0x005555,0,0,GColorMidnightGreenARGB8 },
+    { 0x0055AA,0,0,GColorCobaltBlueARGB8 },
+    { 0x0055FF,0,0,GColorBlueMoonARGB8 },
+    { 0x00AA00,0,0,GColorIslamicGreenARGB8 },
+    { 0x00AA55,0,0,GColorJaegerGreenARGB8 },
+    { 0x00AAAA,0,0,GColorTiffanyBlueARGB8 },
+    { 0x00AAFF,0,0,GColorVividCeruleanARGB8 },
+    { 0x00FF00,0,0,GColorGreenARGB8 },
+    { 0x00FF55,0,0,GColorMalachiteARGB8 },
+    { 0x00FFAA,0,0,GColorMediumSpringGreenARGB8 },
+    { 0x00FFFF,0,0,GColorCyanARGB8 },
+    { 0x550000,0,0,GColorBulgarianRoseARGB8 },
+    { 0x550055,0,0,GColorImperialPurpleARGB8 },
+    { 0x5500AA,0,0,GColorIndigoARGB8 },
+    { 0x5500FF,0,0,GColorElectricUltramarineARGB8 },
+    { 0x555500,0,0,GColorArmyGreenARGB8 },
+    { 0x555555,0,0,GColorDarkGrayARGB8 },
+    { 0x5555AA,0,0,GColorLibertyARGB8 },
+    { 0x5555FF,0,0,GColorVeryLightBlueARGB8 },
+    { 0x55AA00,0,0,GColorKellyGreenARGB8 },
+    { 0x55AA55,0,0,GColorMayGreenARGB8 },
+    { 0x55AAAA,0,0,GColorCadetBlueARGB8 },
+    { 0x55AAFF,0,0,GColorPictonBlueARGB8 },
+    { 0x55FF00,0,0,GColorBrightGreenARGB8 },
+    { 0x55FF55,0,0,GColorScreaminGreenARGB8 },
+    { 0x55FFAA,0,0,GColorMediumAquamarineARGB8 },
+    { 0x55FFFF,0,0,GColorElectricBlueARGB8 },
+    { 0xAA0000,0,0,GColorDarkCandyAppleRedARGB8 },
+    { 0xAA0055,0,0,GColorJazzberryJamARGB8 },
+    { 0xAA00AA,0,0,GColorPurpleARGB8 },
+    { 0xAA00FF,0,0,GColorVividVioletARGB8 },
+    { 0xAA5500,0,0,GColorWindsorTanARGB8 },
+    { 0xAA5555,0,0,GColorRoseValeARGB8 },
+    { 0xAA55AA,0,0,GColorPurpureusARGB8 },
+    { 0xAA55FF,0,0,GColorLavenderIndigoARGB8 },
+    { 0xAAAA00,0,0,GColorLimerickARGB8 },
+    { 0xAAAA55,0,0,GColorBrassARGB8 },
+    { 0xAAAAAA,0,0,GColorLightGrayARGB8 },
+    { 0xAAAAFF,0,0,GColorBabyBlueEyesARGB8 },
+    { 0xAAFF00,0,0,GColorSpringBudARGB8 },
+    { 0xAAFF55,0,0,GColorInchwormARGB8 },
+    { 0xAAFFAA,0,0,GColorMintGreenARGB8 },
+    { 0xAAFFFF,0,0,GColorCelesteARGB8 },
+    { 0xFF0000,0,0,GColorRedARGB8 },
+    { 0xFF0055,0,0,GColorFollyARGB8 },
+    { 0xFF00AA,0,0,GColorFashionMagentaARGB8 },
+    { 0xFF00FF,0,0,GColorMagentaARGB8 },
+    { 0xFF5500,0,0,GColorOrangeARGB8 },
+    { 0xFF5555,0,0,GColorSunsetOrangeARGB8 },
+    { 0xFF55AA,0,0,GColorBrilliantRoseARGB8 },
+    { 0xFF55FF,0,0,GColorShockingPinkARGB8 },
+    { 0xFFAA00,0,0,GColorChromeYellowARGB8 },
+    { 0xFFAA55,0,0,GColorRajahARGB8 },
+    { 0xFFAAAA,0,0,GColorMelonARGB8 },
+    { 0xFFAAFF,0,0,GColorRichBrilliantLavenderARGB8 },
+    { 0xFFFF00,0,0,GColorYellowARGB8 },
+    { 0xFFFF55,0,0,GColorIcterineARGB8 },
+    { 0xFFFFAA,0,0,GColorPastelYellowARGB8 },
+    { 0xFFFFFF,0,0,GColorWhiteARGB8 },
+};
+
+PebbleColorToObject* FindPebbleObject(GColor c) {
+    for (int i = 0;i < ARRAY_LENGTH(PebbleColorObjects);i++) {
+        if (c.argb == PebbleColorObjects[i].Pebble_argb) {
+            return &PebbleColorObjects[i];
+        }
     }
-    return 0;
+    return NULL;
 }
 
-int PebbleColorToPen(GColor c)
+HBRUSH PebbleColorToBrush(GColor c)
 {
-    switch (c.argb) {
-    case GColorBlackARGB8:
-        return BLACK_PEN;
-        break;
-    case GColorWhiteARGB8:
-        return WHITE_PEN;
-        break;
+    PebbleColorToObject* PO = FindPebbleObject(c);
+    if (!PO) return 0;
+    if (!PO->Brush) {
+        PO->Brush = CreateSolidBrush(PO->RGB);
     }
-    return 0;
+    return PO->Brush;
+}
+
+HPEN PebbleColorToPen(GColor c)
+{
+    PebbleColorToObject* PO = FindPebbleObject(c);
+    if (!PO) return 0;
+    if (!PO->Brush) {
+        PO->Pen = CreatePen(PS_SOLID,0, PO->RGB);
+    }
+    return PO->Pen;
 }
 
 COLORREF PebbleColorToColorRef(GColor c)
 {
-    switch (c.argb) {
-    case GColorBlackARGB8:
-        return RGB(0, 0, 0);
-        break;
-    case GColorWhiteARGB8:
-        return RGB(255, 255, 255);
-        break;
-    }
-    return 0;
+    PebbleColorToObject* PO = FindPebbleObject(c);
+    if (!PO) return 0;
+
+    return PO->RGB;
 }
 
 extern int PEBBLE_BASE_WIDTH;
@@ -71,7 +142,7 @@ extern HWND pineHwnd;
 extern HDC faceHDC;
 extern HBITMAP faceBitmap;
 
-static int watch_base = 1;
+int watch_base = 0;
 
 
 void PinePaintBegin()
@@ -89,7 +160,7 @@ void PinePaintBegin()
 void PineClear(GColor bg)
 {
     RECT r = { 0, 0, PEBBLE_FACE_WIDTH, PEBBLE_FACE_HEIGHT };
-    FillRect(faceHDC, &r, (HBRUSH)GetStockObject(PebbleColorToBrush(bg)));
+    FillRect(faceHDC, &r, PebbleColorToBrush(bg));
 }
 
 void PinePaint()
@@ -144,7 +215,7 @@ void PineLog(uint8_t log_level, const char* src_filename, int src_line_number, c
 
 void PineSetBrushColor(GColor c)
 {
-    SelectObject(faceHDC, GetStockObject(PebbleColorToPen(c)));
+    SelectObject(faceHDC, PebbleColorToPen(c));
 }
 
 void PineDrawLine(int x1, int y1, int x2, int y2)
@@ -166,7 +237,7 @@ void PineDrawPolyLine(int num_points, PPOINT* points)
 void PineDrawRectFilled(GColor c, int x, int y, int w, int h)
 {
     RECT r = { x, y, x + w, y + h };
-    FillRect(faceHDC, &r, (HBRUSH)GetStockObject(PebbleColorToBrush(c)));
+    FillRect(faceHDC, &r, PebbleColorToBrush(c));
 }
 
 void PineDrawCircleFilled(GContext* ctx, int x, int y, int radius)
@@ -317,7 +388,7 @@ void graphics_context_set_stroke_color(GContext* ctx, GColor color) {
 
 void graphics_context_set_fill_color(GContext* ctx, GColor color) {
 	ctx->fill_color = color;
-    SelectObject(faceHDC, GetStockObject(PebbleColorToBrush(color)));
+    SelectObject(faceHDC, PebbleColorToBrush(color));
 }
 
 void graphics_draw_pixel(GContext* ctx, GPoint point) {

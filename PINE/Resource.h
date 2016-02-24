@@ -20,6 +20,12 @@
 #define IDD_BATTERY_CHANGE		114
 #define IDM_BATTERY             115
 
+#define IDM_WATCH_BLACK         120
+#define IDM_WATCH_RED           121
+#define IDM_WATCH_ORANGE        122
+#define IDM_WATCH_SILVER        123
+#define IDM_WATCH_WHITE         124
+
 #define IDC_CHARGE				1002
 #define IDC_CHARGING			1003
 #define IDC_PLUGGED				1004
