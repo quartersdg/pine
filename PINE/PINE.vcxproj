@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Aplite|Win32">
@@ -150,32 +150,34 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+
     <ClCompile Include="../concentricity-master/src/concentricity.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+
     <ClCompile Include="../concentricity-master/src/rect.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
-    </ResourceCompile>
+
     <ClCompile Include="../concentricity-master/src/round.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+
     <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
     </ResourceCompile>
   </ItemGroup>

@@ -11,6 +11,8 @@ AppProjectEntry = """
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;{};%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;{};%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;{};%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
 """;
 
@@ -39,7 +41,10 @@ with open("PINE/PINE.base.vcxproj") as inprj:
         for line in inprj:
             if "APP ENTRY LOCATION" in line:
                 for f in sources:
-                    line = AppProjectEntry.format("../"+f,"../"+appdir+"/build/","../"+appdir+"/build/")
+                    line = AppProjectEntry.format("../"+f,
+			"../"+appdir+"/build/",
+			"../"+appdir+"/build/",
+			"../"+appdir+"/build/")
                     outprj.write(line)
                     line = AppResourceProjectEntry.format("../"+appdir+"/build/src/"+appdir+".rc")
                     outprj.write(line)
