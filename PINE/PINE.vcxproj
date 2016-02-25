@@ -9,6 +9,10 @@
       <Configuration>Basalt</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Chalk|Win32">
+      <Configuration>Chalk</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}</ProjectGuid>
@@ -28,6 +32,12 @@
     <PlatformToolset>v140</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v140</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
@@ -37,11 +47,17 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">
@@ -74,6 +90,21 @@
       <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;gdiplus.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>PBL_ROUND;GDIPVER=0x0110;WIN32;_CRT_SECURE_NO_WARNINGS;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\Pebble\basalt\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;gdiplus.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <Text Include="ReadMe.txt" />
   </ItemGroup>
@@ -89,55 +120,62 @@
     <ClCompile Include="Pine.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="PINEGUI.cpp" />
     <ClCompile Include="pine_gpath.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="pine_vibes.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="pine_layer.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="pine_misc.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">Create</PrecompiledHeader>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-
     <ClCompile Include="../concentricity-master/src/concentricity.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-
-    <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
-    </ResourceCompile>
-
     <ClCompile Include="../concentricity-master/src/rect.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-
+    <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
+    </ResourceCompile>
     <ClCompile Include="../concentricity-master/src/round.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Aplite|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Basalt|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Chalk|Win32'">../Pebble;../concentricity-master/build/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-
     <ResourceCompile Include="../concentricity-master/build/src/concentricity-master.rc">
     </ResourceCompile>
   </ItemGroup>

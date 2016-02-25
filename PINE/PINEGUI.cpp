@@ -85,6 +85,8 @@ void PineSetBitmapCompMode(PineCompOp comp_mode) {
 
 void PineDrawBitmap(int x, int y, int w, int h, void* bitmap)
 {
+    if (!bitmap) return;
+
 	Gdiplus::Bitmap* b = (Gdiplus::Bitmap*)bitmap;
 	HBITMAP hb;
 	b->GetHBITMAP(Gdiplus::Color::White, &hb);

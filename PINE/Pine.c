@@ -376,6 +376,36 @@ GPoint grect_center_point(const GRect *rect) {
 	return GPoint(rect->origin.x + rect->size.w / 2, rect->origin.y + rect->size.h / 2);
 }
 
+/* 
+GRect bounds = layer_get_bounds((Layer*)text_layer);
+APP_LOG(APP_LOG_LEVEL_INFO, "%d %d %d %d",bounds.origin.x, bounds.origin.y, bounds.size.w, bounds.size.h);
+GEdgeInsets inset = GEdgeInsets(3,5,7,11);
+APP_LOG(APP_LOG_LEVEL_INFO, "%d %d %d %d",inset.top, inset.right, inset.bottom, inset.left);
+bounds = grect_inset(bounds,inset);
+APP_LOG(APP_LOG_LEVEL_INFO, "%d %d %d %d",bounds.origin.x, bounds.origin.y, bounds.size.w, bounds.size.h);
+// App Logging!
+
+[INFO] hello_world.c:23: 0 0 144 154
+[INFO] hello_world.c:25: 3 5 7 11
+[INFO] hello_world.c:27: 11 3 128 144
+[DEBUG] hello_world.c:29: Just pushed a window!
+
+[INFO] hello_world.c:23: 0 0 144 154
+[INFO] hello_world.c:25: 30 30 30 30
+[INFO] hello_world.c:27: 30 30 84 94
+[DEBUG] hello_world.c:29: Just pushed a window!
+*/
+
+GRect grect_inset(GRect rect, GEdgeInsets insets) {
+    GRect Result;
+
+    Result.origin.x = rect.origin.x + insets.left;
+    Result.origin.y = rect.origin.y + insets.top;
+    Result.size.w = rect.size.w - (insets.left + insets.right);
+    Result.size.h = rect.size.h - (insets.bottom + insets.top);
+
+    return Result;
+}
 
 void* pine_get_global_context(void) {
 	return (void*)&gs_ctx;
@@ -405,6 +435,56 @@ void graphics_fill_rect(GContext* ctx, GRect rect, uint16_t corner_radius, GCorn
 
 void graphics_fill_circle(GContext* ctx, GPoint p, uint16_t radius) {
 	PineDrawCircleFilled(ctx, p.x, p.y, radius);
+}
+
+void graphics_fill_radial(GContext *ctx, GRect rect, GOvalScaleMode scale_mode,
+    uint16_t inset_thickness,
+    int32_t angle_start, int32_t angle_end) {
+
+
+//    double a = pebble_angle_to_radians(path->rotation);
+    float start = TRIGANGLE_TO_DEG(angle_start) + 90;
+    float end = TRIGANGLE_TO_DEG(angle_end) + 90 ;
+    float sweep = fabs(end - start);
+    float newstart = end;
+
+
+    char buf[123];
+    sprintf_s(buf, sizeof(buf), "start %f, end %f, sweep %f, newstart %f, dif %f\n", start, end, sweep, newstart, newstart-sweep);
+    OutputDebugString(buf);
+    //SelectObject(faceHDC, PebbleColorToPen(GColorPurple));
+    //SelectObject(faceHDC, PebbleColorToBrush(GColorPurple));
+    int x = rect.origin.x + (rect.size.w / 2);
+    int y = rect.origin.y + (rect.size.h / 2);
+    int r = rect.size.w / 2;
+    int width = r - inset_thickness;
+
+    HRGN hrgn;
+    hrgn = CreateRectRgn(0, 0,
+        PEBBLE_FACE_WIDTH,
+        PEBBLE_FACE_HEIGHT);
+    SelectClipRgn(faceHDC, hrgn);
+
+    BeginPath(faceHDC);
+    Ellipse(faceHDC, x - width, y - width, x + width, y + width);
+    EndPath(faceHDC);
+    SelectClipPath(faceHDC, RGN_DIFF);
+
+    BeginPath(faceHDC);
+    MoveToEx(faceHDC, x, y, NULL);
+    AngleArc(faceHDC, x, y, r, start, start - end);
+    LineTo(faceHDC, x, y);
+    EndPath(faceHDC);
+    StrokeAndFillPath(faceHDC);
+
+    DeleteObject(hrgn);
+
+#if 0
+    SelectObject(faceHDC, PebbleColorToPen(GColorArmyGreen));
+    AngleArc(faceHDC, rect.origin.x+rect.size.w/2, rect.origin.y+rect.size.h/2, rect.size.h, start, end);
+
+    SelectObject(faceHDC, PebbleColorToPen(GColorArmyGreen));
+#endif
 }
 
 void graphics_context_set_compositing_mode(GContext* ctx, GCompOp mode) {
@@ -462,6 +542,8 @@ static void init_click_handlers(Window* w) {
     memset(w->repeatingClickHandlers, 0, sizeof(w->repeatingClickHandlers));
 }
 
+void window_raw_click_subscribe(ButtonId button_id, ClickHandler down_handler, ClickHandler up_handler, void *context) {
+}
 
 Window* window_create(void) {
 	struct Window *w = (struct Window*)calloc(1,sizeof(struct Window));

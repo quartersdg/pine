@@ -9,12 +9,15 @@ Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Aplite|Win32 = Aplite|Win32
 		Basalt|Win32 = Basalt|Win32
+		Chalk|Win32 = Chalk|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}.Aplite|Win32.ActiveCfg = Aplite|Win32
 		{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}.Aplite|Win32.Build.0 = Aplite|Win32
 		{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}.Basalt|Win32.ActiveCfg = Basalt|Win32
 		{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}.Basalt|Win32.Build.0 = Basalt|Win32
+		{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}.Chalk|Win32.ActiveCfg = Chalk|Win32
+		{B6BAE3EB-05CE-4BCF-8C34-5600415F2C62}.Chalk|Win32.Build.0 = Chalk|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

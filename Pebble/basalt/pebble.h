@@ -3467,8 +3467,12 @@ typedef struct {
 //!  - four values v1, v2, v3, v4 to configure it with
 //!    (GEdgeInsets){.top = v1, .right = v2, .bottom = v3, .left = v4}
 //! @see \ref grect_insets
-#define GEdgeInsets(...) \
-  GEdgeInsetsN(__VA_ARGS__, GEdgeInsets4, GEdgeInsets3, GEdgeInsets2, GEdgeInsets1)(__VA_ARGS__)
+#if defined(_WIN32)
+#define EXPAND( x ) x
+#define GEdgeInsets(...) EXPAND(GEdgeInsetsN(__VA_ARGS__, GEdgeInsets4, GEdgeInsets3, GEdgeInsets2, GEdgeInsets1))EXPAND((__VA_ARGS__))
+#else
+#define GEdgeInsets(...) GEdgeInsetsN(__VA_ARGS__, GEdgeInsets4, GEdgeInsets3, GEdgeInsets2, GEdgeInsets1)(__VA_ARGS__)
+#endif
 
 //! Returns a rectangle that is shrinked or expanded by the given edge insets.
 //! @note The rectangle is standardized and then the inset parameters are applied.

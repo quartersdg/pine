@@ -139,6 +139,7 @@ Layer* text_layer_get_layer(TextLayer *text_layer) {
 }
 
 void text_layer_set_text(TextLayer *text_layer, const char *text) {
+    if (!text_layer) return;
 	if (text_layer->text) free((void*)text_layer->text);
 	text_layer->text = _strdup(text);
 	pine_something_is_dirty();
@@ -199,6 +200,7 @@ const GBitmap* bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer) {
 }
 
 void bitmap_layer_set_bitmap(BitmapLayer *bitmap_layer, const GBitmap *bitmap) {
+    if (!bitmap_layer || !bitmap) return;
 	bitmap_layer->bitmap = bitmap->addr;
 	pine_something_is_dirty();
 }

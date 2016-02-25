@@ -2,11 +2,14 @@ ipch/*
 Debug/*
 Aplite/*
 Basalt/*
+Chalk/*
 PINE/Debug/*
 PINE/Aplite/*
 PINE/Basalt/*
+PINE/Chalk/*
 *.sdf
 *.suo
 *~
 */build/*
 *.APS
+*.swp
